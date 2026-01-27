@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+python-multipart
+sqlalchemy
+stripe
+openai
+pdfminer.six
+python-docx
+requests
+beautifulsoup4

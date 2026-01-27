@@ -1,0 +1,22 @@
+[
+  {
+    "id": "case_backend_engineer",
+    "resume_text": "Senior Backend Engineer with 7 years of experience. Skills: Python, FastAPI, PostgreSQL, AWS. Titles: Backend Engineer, Software Engineer.",
+    "expected": {
+      "skills": ["python", "fastapi", "postgresql", "aws"],
+      "titles": ["Backend Engineer", "Software Engineer"],
+      "seniority": "senior",
+      "years_experience": 7
+    }
+  },
+  {
+    "id": "case_product_designer",
+    "resume_text": "Product Designer with 5 years of experience. Skills include Figma, UX research, prototyping. Titles: Product Designer, UX Designer.",
+    "expected": {
+      "skills": ["figma", "ux research", "prototyping"],
+      "titles": ["Product Designer", "UX Designer"],
+      "seniority": "mid",
+      "years_experience": 5
+    }
+  }
+]

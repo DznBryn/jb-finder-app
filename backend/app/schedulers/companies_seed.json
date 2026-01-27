@@ -1,0 +1,49 @@
+[
+  { "name": "Stripe", "website": "https://stripe.com", "greenhouse_token": "stripe" },
+  { "name": "Airbnb", "website": "https://www.airbnb.com", "greenhouse_token": "airbnb" },
+  { "name": "Asana", "website": "https://asana.com", "greenhouse_token": "asana" },
+  { "name": "Datadog", "website": "https://www.datadoghq.com", "greenhouse_token": "datadog" },
+  { "name": "Coinbase", "website": "https://www.coinbase.com", "greenhouse_token": "coinbase" },
+
+  { "name": "OpenAI", "website": "https://openai.com", "greenhouse_token": "openai" },
+  { "name": "Notion", "website": "https://www.notion.so", "greenhouse_token": "notion" },
+  { "name": "Figma", "website": "https://www.figma.com", "greenhouse_token": "figma" },
+  { "name": "Slack", "website": "https://slack.com", "greenhouse_token": "slack" },
+  { "name": "Robinhood", "website": "https://robinhood.com", "greenhouse_token": "robinhood" },
+
+  { "name": "Square", "website": "https://squareup.com", "greenhouse_token": "square" },
+  { "name": "Instacart", "website": "https://www.instacart.com", "greenhouse_token": "instacart" },
+  { "name": "Lyft", "website": "https://www.lyft.com", "greenhouse_token": "lyft" },
+  { "name": "DoorDash", "website": "https://www.doordash.com", "greenhouse_token": "doordash" },
+  { "name": "Plaid", "website": "https://plaid.com", "greenhouse_token": "plaid" },
+
+  { "name": "Twilio", "website": "https://www.twilio.com", "greenhouse_token": "twilio" },
+  { "name": "Snowflake", "website": "https://www.snowflake.com", "greenhouse_token": "snowflake" },
+  { "name": "Okta", "website": "https://www.okta.com", "greenhouse_token": "okta" },
+  { "name": "Zoom", "website": "https://zoom.us", "greenhouse_token": "zoom" },
+  { "name": "HubSpot", "website": "https://www.hubspot.com", "greenhouse_token": "hubspot" },
+
+  { "name": "Reddit", "website": "https://www.reddit.com", "greenhouse_token": "reddit" },
+  { "name": "Pinterest", "website": "https://www.pinterest.com", "greenhouse_token": "pinterest" },
+  { "name": "Peloton", "website": "https://www.onepeloton.com", "greenhouse_token": "peloton" },
+  { "name": "Warby Parker", "website": "https://www.warbyparker.com", "greenhouse_token": "warbyparker" },
+  { "name": "Etsy", "website": "https://www.etsy.com", "greenhouse_token": "etsy" },
+
+  { "name": "Dropbox", "website": "https://www.dropbox.com", "greenhouse_token": "dropbox" },
+  { "name": "Shopify", "website": "https://www.shopify.com", "greenhouse_token": "shopify" },
+  { "name": "GitLab", "website": "https://about.gitlab.com", "greenhouse_token": "gitlab" },
+  { "name": "Cloudflare", "website": "https://www.cloudflare.com", "greenhouse_token": "cloudflare" },
+  { "name": "Atlassian", "website": "https://www.atlassian.com", "greenhouse_token": "atlassian" },
+
+  { "name": "Zendesk", "website": "https://www.zendesk.com", "greenhouse_token": "zendesk" },
+  { "name": "Intercom", "website": "https://www.intercom.com", "greenhouse_token": "intercom" },
+  { "name": "Rippling", "website": "https://www.rippling.com", "greenhouse_token": "rippling" },
+  { "name": "Gusto", "website": "https://gusto.com", "greenhouse_token": "gusto" },
+  { "name": "Brex", "website": "https://www.brex.com", "greenhouse_token": "brex" },
+
+  { "name": "Chime", "website": "https://www.chime.com", "greenhouse_token": "chime" },
+  { "name": "Flexport", "website": "https://www.flexport.com", "greenhouse_token": "flexport" },
+  { "name": "Oscar Health", "website": "https://www.hioscar.com", "greenhouse_token": "oscar" },
+  { "name": "Handshake", "website": "https://joinhandshake.com", "greenhouse_token": "handshake" },
+  { "name": "Indeed", "website": "https://www.indeed.com", "greenhouse_token": "indeed" }
+]

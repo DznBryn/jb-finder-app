@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: sqlite:////app/dev.db
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PRICE_MONTHLY: ${STRIPE_PRICE_MONTHLY:-}
+      STRIPE_PRICE_ONETIME: ${STRIPE_PRICE_ONETIME:-}
+      STRIPE_WEBHOOK_BYPASS: ${STRIPE_WEBHOOK_BYPASS:-false}
+      S3_BUCKET: ${S3_BUCKET:-}
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    depends_on:
+      - backend
+
+  stripe:
+    image: stripe/stripe-cli:latest
+    depends_on:
+      - backend
+    command: listen --forward-to http://backend:8000/api/webhooks/stripe
+    environment:
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
