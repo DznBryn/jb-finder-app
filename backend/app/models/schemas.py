@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -91,11 +91,10 @@ class JobSelectionRequest(BaseModel):
 
 
 class JobSelectionResponse(BaseModel):
-    """Result of a selection attempt (with limit enforcement)."""
+    """Result of a selection attempt."""
 
     accepted_job_ids: List[str]
     rejected_job_ids: List[str]
-    remaining_daily_quota: int
 
 
 class ApplyPrepareRequest(BaseModel):
@@ -111,6 +110,22 @@ class ApplyPrepareResponse(BaseModel):
 
     cover_letter_text: Optional[str]
     apply_url: str
+
+
+class SelectedJobDetail(BaseModel):
+    """Minimal job details for apply flow."""
+
+    job_id: str
+    company: str
+    title: str
+    location: str
+    apply_url: str
+
+
+class SelectedJobsResponse(BaseModel):
+    """Response wrapper for selected job details."""
+
+    jobs: List[SelectedJobDetail]
 
 
 class CheckoutRequest(BaseModel):
@@ -131,3 +146,74 @@ class SubscriptionStatusResponse(BaseModel):
 
     plan: str
     status: str
+
+
+class AnalyzeRequest(BaseModel):
+    """Payload to analyze selected jobs against a session."""
+
+    session_id: UUID
+    job_ids: List[str]
+
+
+class AnalyzeResult(BaseModel):
+    """Per-job analysis grade."""
+
+    job_id: str
+    grade: str
+    rationale: str
+    missing_skills: List[str] = []
+
+
+class AnalyzeResponse(BaseModel):
+    """Response with analysis results and best match."""
+
+    session_id: UUID
+    results: List[AnalyzeResult]
+    best_match_job_id: Optional[str] = None
+
+
+class LearningResource(BaseModel):
+    """Learning resource for missing skills."""
+
+    title: str
+    type: str
+    url: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class LearningResourceGroup(BaseModel):
+    """Resources grouped by skill."""
+
+    skill: str
+    category: str
+    relevant: bool = True
+    resources: List[LearningResource] = []
+
+
+class DeepAnalyzeRequest(BaseModel):
+    """Payload to deep analyze a job."""
+
+    session_id: UUID
+    job_id: str
+
+
+class DeepAnalyzeResponse(BaseModel):
+    """Deep analysis response with learning resources."""
+
+    session_id: UUID
+    job_id: str
+    grade: str
+    rationale: str
+    missing_skills: List[str] = []
+    learning_resources: List[LearningResourceGroup] = []
+
+
+class GreenhouseApplyRequest(BaseModel):
+    """Payload to submit a Greenhouse application."""
+
+    session_id: UUID
+    job_id: str
+    fields: Dict[str, object] = {}
+    data_compliance: Dict[str, bool] = {}
+    demographic_answers: Optional[List[dict]] = None
+    mapped_url_token: Optional[str] = None

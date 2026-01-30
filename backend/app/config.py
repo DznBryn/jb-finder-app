@@ -11,6 +11,8 @@ S3_BUCKET = os.getenv("S3_BUCKET", "")
 # LLM
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
+OPENAI_MODEL_CHEAP = os.getenv("OPENAI_MODEL_CHEAP", "gpt-5-nano")
+OPENAI_RESUME_MAX_OUTPUT_TOKENS = int(os.getenv("OPENAI_RESUME_MAX_OUTPUT_TOKENS", "1024"))
 
 # Stripe
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
@@ -28,3 +30,6 @@ GREENHOUSE_TOKENS = [
     for token in os.getenv("GREENHOUSE_TOKENS", "").split(",")
     if token.strip()
 ]
+
+# Greenhouse applications
+GREENHOUSE_API_KEY = os.getenv("GREENHOUSE_API_KEY", "")

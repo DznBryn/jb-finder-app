@@ -1,0 +1,236 @@
+import type { Dispatch, SetStateAction, FormEvent } from "react";
+import type { ButtonProps } from "@/components/ui/button";
+import type React from "react";
+
+export type SessionProfile = {
+  session_id: string;
+  resume_s3_key: string | null;
+  extracted_skills: string[];
+  inferred_titles: string[];
+  seniority: string;
+  years_experience: number;
+  location_pref: string | null;
+  remote_pref: boolean | null;
+  llm_summary: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  social_links: string[];
+  created_at: string;
+  expires_at: string;
+};
+
+export type AnalyzeResult = {
+  job_id: string;
+  grade: string;
+  rationale: string;
+  missing_skills: string[];
+};
+
+export type LearningResource = {
+  title: string;
+  type: string;
+  url?: string | null;
+  notes?: string | null;
+};
+
+export type LearningResourceGroup = {
+  skill: string;
+  category: string;
+  relevant: boolean;
+  resources: LearningResource[];
+};
+
+export type DeepAnalyzeResponse = {
+  session_id: string;
+  job_id: string;
+  grade: string;
+  rationale: string;
+  missing_skills: string[];
+  learning_resources: LearningResourceGroup[];
+};
+
+export type AnalyzedJobDetail = {
+  job_id: string;
+  title: string;
+  company: string;
+  location: string;
+  apply_url: string;
+};
+
+export type SessionContextValue = {
+  sessionProfile: SessionProfile | null;
+  setSessionProfile: Dispatch<SetStateAction<SessionProfile | null>>;
+  selectedJobs: string[];
+  setSelectedJobs: Dispatch<SetStateAction<string[]>>;
+  analysisResults: Record<string, AnalyzeResult | null>;
+  setAnalysisResults: Dispatch<
+    SetStateAction<Record<string, AnalyzeResult | null>>
+  >;
+  analysisBest: string | null;
+  setAnalysisBest: Dispatch<SetStateAction<string | null>>;
+  analyzedJobIds: string[];
+  setAnalyzedJobIds: Dispatch<SetStateAction<string[]>>;
+  analyzedJobDetails: Record<string, AnalyzedJobDetail>;
+  setAnalyzedJobDetails: Dispatch<
+    SetStateAction<Record<string, AnalyzedJobDetail>>
+  >;
+};
+
+export type MatchResult = {
+  job_id: string;
+  company: string;
+  title: string;
+  location: string;
+  pay_ranges: Array<{
+    min_cents?: number;
+    max_cents?: number;
+    currency_type?: string;
+    title?: string;
+    blurb?: string;
+  }>;
+  score: number;
+  tier: string;
+  reasons: string[];
+  missing_skills: string[];
+  apply_url: string;
+};
+
+export type SelectionResponse = {
+  accepted_job_ids: string[];
+  rejected_job_ids: string[];
+};
+
+export type ApplyResult = {
+  cover_letter_text: string | null;
+  apply_url: string;
+};
+
+export type MatchFilters = {
+  title_terms: string[];
+  location_pref: string | null;
+  work_mode: string | null;
+  pay_range: string | null;
+};
+
+export type UploadResumeProps = {
+  uploading: boolean;
+  errorMessage: string | null;
+  sessionProfile: SessionProfile | null;
+  onUpload: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+};
+
+export type MatchesSectionProps = {
+  matchesError: string | null;
+  hasLoadedMatches: boolean;
+  loadingMatches: boolean;
+  matches: MatchResult[];
+  matchesPage: number;
+  matchesTotal: number;
+  matchesPageSize: number;
+  activeFilters: MatchFilters | null;
+  filterTitleTerms: string;
+  filterLocation: string;
+  filterWorkMode: string;
+  filterPayRange: string;
+  onFilterTitleTermsChange: (value: string) => void;
+  onFilterLocationChange: (value: string) => void;
+  onFilterWorkModeChange: (value: string) => void;
+  onFilterPayRangeChange: (value: string) => void;
+  onApplyFilters: () => Promise<void>;
+  onFetchMatches: (page: number, filters: MatchFilters | null) => Promise<void>;
+  selectedJobs: string[];
+  unanalyzedSelected: string[];
+  analyzedJobIds: string[];
+  analyzedJobDetails: Record<string, AnalyzedJobDetail>;
+  analysisResults: Record<string, AnalyzeResult | null>;
+  analysisBest: string | null;
+  analyzing: boolean;
+  selectionError: string | null;
+  analysisError: string | null;
+  selectionResult: SelectionResponse | null;
+  applyTone: string;
+  applyResults: Record<string, ApplyResult | null>;
+  onAnalyzeSelections: () => Promise<void>;
+  onSelectAllVisible: () => void;
+  onDeselectAll: () => void;
+  onSaveSelections: () => Promise<void>;
+  onToggleJobSelection: (jobId: string) => void;
+  onApplyToneChange: (value: string) => void;
+  onPrepareApply: (jobId: string) => Promise<void>;
+};
+
+export type SelectedJob = {
+  job_id: string;
+  company: string;
+  title: string;
+  location: string;
+  apply_url: string;
+};
+
+export type GreenhouseFieldValue = { value: number | string; label: string };
+
+export type GreenhouseField = {
+  name: string;
+  type: string;
+  values?: GreenhouseFieldValue[];
+};
+
+export type GreenhouseQuestion = {
+  required?: boolean;
+  label: string;
+  fields: GreenhouseField[];
+};
+
+export type GreenhouseJob = {
+  id: number;
+  title: string;
+  location?: { name?: string } | null;
+  absolute_url?: string;
+  content?: string;
+  questions?: GreenhouseQuestion[];
+  location_questions?: GreenhouseQuestion[];
+  pay_input_ranges?: Array<{
+    min_cents?: number;
+    max_cents?: number;
+    currency_type?: string;
+    title?: string;
+    blurb?: string;
+  }>;
+  data_compliance?: Array<{
+    type: string;
+    requires_consent?: boolean;
+    requires_processing_consent?: boolean;
+    requires_retention_consent?: boolean;
+  }>;
+  demographic_questions?: {
+    header?: string;
+    description?: string;
+    questions?: Array<{
+      id: number;
+      label: string;
+      required?: boolean;
+      type: string;
+      answer_options: Array<{ id: number; label: string; free_form?: boolean }>;
+    }>;
+  };
+};
+
+export type JobFormState = {
+  fields: Record<string, string | string[] | null>;
+  compliance: Record<string, boolean>;
+  demographics: Record<
+    string,
+    {
+      selected: number[] | number | null;
+      text?: string;
+    }
+  >;
+};
+
+export type PaginationLinkProps = {
+  isActive?: boolean;
+} & Pick<ButtonProps, "size"> &
+  React.ComponentProps<"a">;

@@ -94,4 +94,17 @@
   body {
     @apply bg-background text-foreground;
   }
+  span {
+    color: var(--foreground) !important;
+    font-size: inherit !important;
+    font-weight: inherit !important;
+    font-style: inherit !important;
+    font-family: inherit !important;
+    font-variant: inherit !important;
+    font-optical-sizing: inherit !important;
+    font-kerning: inherit !important;
+    font-feature-settings: inherit !important;
+    font-variation-settings: inherit !important;
+    text-rendering: inherit !important;
+  }
 }
