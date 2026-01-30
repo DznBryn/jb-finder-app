@@ -1,10 +1,10 @@
 ---
 name: job-finder-mvp-plan
-overview: Plan a research-only architecture for the Job Finder MVP aligned with the PRD, including frontend flow, backend services, data model, and integrations, without code changes.
+overview: Living architecture + implementation plan for the Job Finder MVP, updated to reflect current build progress.
 todos:
   - id: define-api-contracts
     content: Define request/response schemas for MVP endpoints.
-    status: pending
+    status: completed
   - id: diagram-architecture
     content: Draft a simple system diagram for data flow.
     status: completed
@@ -35,7 +35,7 @@ todos:
 
 ## Assumptions
 
-- Repository is empty, so this plan will outline structure, not code changes.
+- Repository is active with backend/frontend + docker-compose in place.
 - Styling will use Tailwind CSS per user rule.
 
 ## User Types
@@ -56,6 +56,7 @@ Data model should include a `user_type` field from the start to support future e
 | Feature | Free | Pro |
 |---------|------|-----|
 | Job selections | 5/day | Unlimited |
+| Job analysis (LLM grades) | 5/month (per IP) | 20/month |
 | View match scores + reasons | Yes | Yes |
 | Cover letter generation | No | Yes (unlimited) |
 | Saved application history | No | Yes |
@@ -76,6 +77,10 @@ Data model should include a `user_type` field from the start to support future e
 - Tracked per session (unauthenticated) or per user (authenticated)
 - Daily reset at midnight UTC
 - Redis counter: `selections:{session_id}:{date}` with TTL
+- Analysis credits tracked monthly (per IP when unauthenticated)
+### Pro Credits (Planned)
+- 20 analysis credits per month (tracked per user)
+- Later: sell add-on analysis credit packs
 
 ## Tech Stack (Finalized)
 
@@ -132,7 +137,7 @@ Data model should include a `user_type` field from the start to support future e
 - Backend API gateway: handles upload, session profile, matching, and apply preparation.
 - Services:
   - Resume parsing service (PDF/DOCX extraction + normalization).
-  - Job ingestion service (Greenhouse + Lever polling + de-dup + daily refresh).
+- Job ingestion service (Greenhouse polling + de-dup + daily refresh).
   - Matching service (deterministic scoring + explainable reasons).
   - Assisted apply service (cover letter generation + download/copy payloads).
   - Payment service (Stripe integration, subscription management).
@@ -144,7 +149,7 @@ Data model should include a `user_type` field from the start to support future e
 ## Job Discovery (MVP)
 
 ### The Challenge
-Greenhouse/Lever APIs require knowing company board tokens upfront — no global search.
+Greenhouse APIs require knowing company board tokens upfront — no global search.
 
 ### Solution: Hybrid Approach
 1. **Curated seed list** (~50 companies): Pre-selected tech companies known to be hiring. Polled daily.
@@ -159,23 +164,22 @@ Greenhouse/Lever APIs require knowing company board tokens upfront — no global
 ## Job Ingestion (MVP)
 
 ### ATS Sources
-Both **Greenhouse** and **Lever** public APIs (no auth required):
+Only **Greenhouse** public API (no auth required) for MVP:
 
 | ATS | Endpoint Pattern | Notes |
 |-----|------------------|-------|
 | Greenhouse | `boards-api.greenhouse.io/v1/boards/{token}/jobs` | Most widely used |
-| Lever | `api.lever.co/v0/postings/{company}` | Simpler response format |
 
 ### Implementation
-- Shared `ATSAdapter` interface with per-ATS implementations (~50-100 lines each).
-- Curated seed list: ~25 companies per ATS (50 total) to start.
+- Shared `ATSAdapter` interface with Greenhouse implementation.
+- Curated seed list: ~25 companies to start (validated).
 - Daily refresh via ECS scheduled task.
 - Deduplication on `source` + `source_job_id`.
 
 ### Data Extracted
 - Job ID, title, location, department, description (HTML)
 - Apply URL (for manual submission)
-- Skills extracted from description via LLM/regex
+- Pay ranges from Greenhouse pay transparency endpoint
 - Seniority inferred from title
 
 ## Architecture Diagram (MVP)
@@ -248,12 +252,13 @@ flowchart LR
 - `extracted_skills`: JSONB array
 - `inferred_titles`: JSONB array
 - `seniority`: string (junior/mid/senior/lead/executive)
-- `location_pref`: string
-- `remote_pref`: boolean
+- `location_pref`: string (optional filter)
+- `remote_pref`: boolean (optional filter)
 - `years_experience`: integer
 - `daily_selections`: integer (reset daily, max 5 for free)
 - `created_at`: timestamp
 - `expires_at`: timestamp (created_at + 24h)
+- `first_name`, `last_name`, `email`, `phone`, `location`, `social_links`
 
 ### Jobs
 - `id`: UUID
@@ -263,8 +268,8 @@ flowchart LR
 - `remote`: boolean
 - `seniority`: string
 - `description`: text
-- `skills_extracted`: JSONB array
-- `source`: enum (greenhouse, lever)
+- `pay_ranges`: JSONB array
+- `source`: enum (greenhouse)
 - `source_job_id`: string
 - `apply_url`: string
 - `updated_at`: timestamp
@@ -273,7 +278,7 @@ flowchart LR
 - `id`: UUID
 - `name`: string
 - `greenhouse_board_token`: string (nullable)
-- `lever_board_token`: string (nullable)
+- `website`: string (nullable)
 - `user_suggested`: boolean (default: false)
 
 ### Matches (computed, cacheable)
@@ -315,11 +320,12 @@ flowchart LR
 - `current_period_end`: timestamp
 - `created_at`: timestamp
 
-## API Surface (Minimal)
+## API Surface (Current)
 
 ### Core Flow
 - `POST /api/resume/upload` → returns session_id + parsed profile
-- `GET /api/matches?session_id=...` → ranked jobs with explanation payloads
+- `GET /api/matches?session_id=...` → ranked jobs (initial load)
+- `POST /api/matches` → ranked jobs with filters + LLM query (reload)
 - `POST /api/jobs/select` → store selections (enforces 5/day limit for free)
 - `POST /api/apply/prepare` → cover letter (Pro only) + download/copy payloads
 - `POST /api/signup` → convert session to user
@@ -328,24 +334,23 @@ flowchart LR
 - `POST /api/checkout/create` → returns Stripe Checkout session URL
 - `POST /api/webhooks/stripe` → handle Stripe events (subscription created, cancelled, etc.)
 - `GET /api/subscription/status` → returns current plan + limits
+- `GET /api/jobs/selected` → list selected jobs for session
 
-## Matching Heuristics (Explainable)
+## Matching Heuristics (Current + Planned)
 
-### Scoring Components
-- **Skill overlap** (40%): matched skills / total job skills
-- **Title similarity** (30%): token overlap + seniority keyword match
-- **Seniority fit** (20%): exact match = full points, ±1 level = partial
-- **Location fit** (10%): remote match or location match
+### Current (Implemented)
+- LLM builds search query from inferred titles + filters
+- Filters: title terms, location, work mode (remote/hybrid/in-office), pay range
+- Seniority filter excludes ±2+ levels
+- Score is currently a placeholder (skills extraction removed)
 
 ### Tier Thresholds
 - **Strong**: score >= 90
 - **Medium**: score >= 60
 - **Weak**: score < 60
 
-### Explainability
-Each match includes:
-- `reasons`: ["5/6 required skills match", "Title aligns with Senior Engineer"]
-- `missing_skills`: ["Kubernetes", "GraphQL"]
+### Planned
+- Add deterministic scoring once job skill extraction returns
 
 ## Assisted Apply UX Flow
 
@@ -377,7 +382,7 @@ Each match includes:
 - User control → allow opt-in selection only (no background apply).
 - Payment fraud → use Stripe's built-in fraud protection.
 
-## Suggested Repo Structure
+## Repo Structure (Current)
 
 ```
 jb-finder-app/
@@ -390,9 +395,9 @@ jb-finder-app/
 │   ├── app/
 │   │   ├── api/             # Route handlers
 │   │   ├── services/        # Business logic (profile, jobs, applications, payments)
-│   │   ├── ingestion/       # ATS adapters (Greenhouse, Lever)
-│   │   ├── llm/             # LLM safety layer + prompt templates
-│   │   ├── workers/         # Celery tasks
+│   │   ├── schedulers/      # ATS ingestion + seed loaders
+│   │   ├── services/llm     # LLM safety layer + prompt templates
+│   │   ├── workers/         # Celery tasks (planned)
 │   │   └── models/          # Pydantic schemas + DB models
 │   ├── requirements.txt
 │   └── Dockerfile
@@ -401,15 +406,12 @@ jb-finder-app/
 └── .github/workflows/       # GitHub Actions CI/CD
 ```
 
-## Next Steps (If/When You Want Code)
+## Next Steps (Planned)
 
-- Scaffold Next.js + Tailwind + shadcn/ui frontend.
-- Scaffold FastAPI backend with Pydantic models.
-- Set up docker-compose for local Postgres + Redis.
-- Implement upload → parse → session flow.
-- Build ATS adapters for Greenhouse and Lever.
-- Add deterministic matching and explanation generation.
-- Add LLM safety layer with prompt templates.
-- Integrate Stripe for payments (Checkout + Webhooks).
-- Implement free tier limits (5 selections/day, no cover letter).
-- Curate initial seed list of ~50 companies (25 Greenhouse, 25 Lever).
+- Persist locked `title_terms` on session to survive reloads without re-query.
+- Add Alembic migrations so DB changes don't require deleting SQLite.
+- Reintroduce job skill extraction + deterministic scoring.
+- Expand filters UI (clear/reset, chips, saved filters).
+- Harden Stripe Checkout + Webhook flows.
+- Add basic analytics + error tracking.
+- Add Redis + Celery for async ingestion and parsing (optional for MVP).

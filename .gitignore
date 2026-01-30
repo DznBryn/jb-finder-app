@@ -27,3 +27,10 @@ coverage/
 *.sqlite3
 backend/dev.db
 backend/app/storage/
+
+# Personal learning notes
+**/LEARNINGS.md
+
+# Internal research
+Job_App_Research.md
+AWS-learnings.md

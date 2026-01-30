@@ -78,3 +78,16 @@ class JobListing(Base):
     source_job_id: Mapped[str] = mapped_column(String(128))
     apply_url: Mapped[str] = mapped_column(String(512))
     updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class AnalysisUsage(Base):
+    """Track analysis usage for free/pro limits."""
+
+    __tablename__ = "analysis_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    month_key: Mapped[str] = mapped_column(String(16))
+    count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)

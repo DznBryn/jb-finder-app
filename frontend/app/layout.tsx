@@ -1,4 +1,5 @@
 import "../styles/globals.css";
+import Providers from "./providers";
 
 export const metadata = {
   title: "Job Finder",
@@ -14,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <div className="mx-auto max-w-7xl px-6 py-10">{children}</div>
+        <Providers>
+          <div className="mx-auto max-w-full px-6 py-10">{children}</div>
+        </Providers>
       </body>
     </html>
   );

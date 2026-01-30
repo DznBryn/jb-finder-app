@@ -1,0 +1,248 @@
+Job Finder — MVP PRD (v1)
+
+================================================================================
+OBJECTIVE
+================================================================================
+
+Enable job seekers to quickly identify and apply to relevant jobs by uploading 
+a resume, viewing ranked matches, and completing assisted applications—without 
+requiring an account upfront.
+
+Primary success metric:
+User completes ≥1 assisted application in a single session.
+
+================================================================================
+TARGET USER
+================================================================================
+
+- Mid–senior knowledge workers (tech, product, design, data, ops)
+- Actively job hunting
+- Already has a resume
+- Wants speed + relevance, not another job board
+
+================================================================================
+NON-GOALS (HARD CONSTRAINTS)
+================================================================================
+
+❌ No full auto-submit in MVP
+❌ No scraping Indeed / Glassdoor
+❌ No browser automation
+❌ No accuracy % claims
+❌ No mandatory signup before value
+
+================================================================================
+USER FLOW (MVP)
+================================================================================
+
+1. LANDING → RESUME UPLOAD (NO ACCOUNT)
+--------------------------------------------------------------------------------
+   Accept: PDF, DOCX
+   Max size: 5MB
+   Immediate parsing on upload
+   
+   Extract:
+   - Skills
+   - Job titles
+   - Seniority level
+   - Location / remote preference
+   - Years of experience
+   - Keywords
+   
+   Output:
+   Temporary session profile (expires after 24 hours unless saved)
+
+2. JOB MATCHING (READ-ONLY)
+--------------------------------------------------------------------------------
+   Ingest jobs from:
+   - Greenhouse
+   - Lever
+   
+   Filter by:
+   - Location / remote
+   - Seniority alignment
+   
+   Scoring (heuristic, transparent):
+   - Skill overlap (40%)
+   - Title similarity (30%)
+   - Seniority fit (20%)
+   - Location fit (10%)
+   
+   Tier Thresholds:
+   - Strong: score >= 90
+   - Medium: score >= 60
+   - Weak: score < 60
+   
+   Display:
+   - Match tier: Strong / Medium / Weak
+   - "Why this matches"
+   - "What's missing"
+
+3. JOB SELECTION
+--------------------------------------------------------------------------------
+   User selects:
+   - Individual jobs
+   - OR "Select all strong matches"
+   
+   Each job card shows:
+   - Company
+   - Role
+   - Match tier
+   - Key matched skills
+   - Missing skills
+
+4. ASSISTED APPLY (CRITICAL MVP STEP)
+--------------------------------------------------------------------------------
+   NOT auto-submission
+   
+   For each selected job:
+   - User picks cover letter tone (formal / concise / technical)
+   - Generate tailored cover letter
+   - Open employer application page with:
+     - Resume ready
+     - Cover letter ready
+   - User manually submits
+   - User explicitly clicks submit
+
+5. POST-ACTION CONVERSION
+--------------------------------------------------------------------------------
+   After first assisted apply:
+   
+   Prompt:
+   "Create an account to save applications, reuse tailored resumes, 
+   and track status"
+   
+   If user signs up:
+   - Convert session profile → account profile
+   - Persist applications
+
+================================================================================
+USER TYPES
+================================================================================
+
+MVP:
+- Job Seekers (type: U) — default
+
+Post-MVP:
+- Recruiters (type: R) — search candidates, view profiles, post jobs
+- Employers (type: E) — company accounts, post jobs, manage applications
+
+================================================================================
+MONETIZATION
+================================================================================
+
+PRICING TIERS
+-------------
+                        Free            Pro
+Job selections          5/day           Unlimited
+Match scores/reasons    Yes             Yes
+Cover letter            No              Yes (unlimited)
+Saved history           No              Yes
+Account persistence     No (24hr)       Yes
+Price                   $0              $15/month OR $29 one-time (30 days)
+
+PAYMENT PROVIDER
+- Stripe (subscriptions + one-time payments)
+- Stripe Checkout for hosted payment flow
+- Webhooks for subscription lifecycle
+
+================================================================================
+JOB DISCOVERY
+================================================================================
+
+Challenge: ATS APIs require knowing company board tokens upfront (no global search).
+
+Solution (Hybrid Approach):
+1. Curated seed list (~50 companies) - pre-selected, polled daily
+2. User-specified companies (optional) - users can add targets
+3. Community expansion - grow list over time from user submissions
+
+================================================================================
+FUNCTIONAL REQUIREMENTS
+================================================================================
+
+RESUME PARSING
+- Text extraction (PDF/DOCX)
+- Skill normalization
+- Title inference
+- Experience estimation
+
+JOB INGESTION
+- ATS API polling (Greenhouse, Lever)
+- De-duplication
+- Daily refresh
+
+MATCHING ENGINE
+- Deterministic scoring
+- Explainable outputs (no black box)
+
+ASSISTED APPLY
+- Document generation (cover letter)
+- Download or copy support
+- Application link handling
+
+TRUST & COMPLIANCE
+- Explicit user consent before each apply
+- Clear messaging: "We assist — you submit"
+- No credential storage
+- No impersonation
+
+================================================================================
+TECH STACK
+================================================================================
+
+Frontend:
+- Next.js (App Router)
+- shadcn/ui component library
+- Tailwind CSS
+- Context API (migrate to Zustand if needed)
+- Zod for validation
+
+Backend:
+- Python + FastAPI
+- OpenAI GPT-5 (abstracted for multi-model)
+- LLM safety layer (prompt templates + Pydantic validation)
+- Pydantic for schemas
+- Stripe (payments)
+
+Database:
+- Postgres + JSONB
+
+Storage:
+- AWS S3 (resumes, cover letters, docs)
+
+Queue/Workers:
+- Celery + Redis
+
+Scheduler:
+- AWS ECS scheduled tasks
+
+Observability:
+- stdout/stderr + CloudWatch
+
+CI/CD:
+- GitHub Actions
+
+Infrastructure:
+- Docker containers
+- AWS (ECS, RDS, S3, CloudWatch)
+- Redis (sessions, rate limiting, Celery broker)
+
+================================================================================
+MVP EXIT CRITERIA
+================================================================================
+
+- User can upload resume → see ranked jobs → complete assisted application
+- ≥30% of users reach assisted apply step
+- ≥15% convert to account creation
+
+================================================================================
+V1+ (EXPLICITLY DEFERRED)
+================================================================================
+
+- Auto-apply
+- Browser extension
+- CAPTCHA handling
+- Job board scraping
+- Application status tracking automation
+- Resume tailoring (v1.1)
+- Recruiter/Employer features

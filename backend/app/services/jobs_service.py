@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.db_models import JobListing
 
 logger = logging.getLogger("jobs")
+
 def _infer_seniority(title: str) -> str:
     """Infer seniority from job title keywords."""
 
@@ -74,3 +75,17 @@ def list_jobs(db: Session) -> List[JobListing]:
     """Return all jobs currently stored."""
 
     return db.query(JobListing).all()
+
+
+def list_jobs_by_ids(db: Session, job_ids: List[str]) -> List[JobListing]:
+    """Return jobs for the provided IDs."""
+
+    int_ids = []
+    for job_id in job_ids:
+        try:
+            int_ids.append(int(job_id))
+        except ValueError:
+            continue
+    if not int_ids:
+        return []
+    return db.query(JobListing).filter(JobListing.id.in_(int_ids)).all()
