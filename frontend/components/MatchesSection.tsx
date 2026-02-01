@@ -9,7 +9,18 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import MatchesSkeleton from "./skeletons/MatchesSkeleton";
+import { useSession } from "../app/session-context";
+import CoverLetterEditor from "./CoverLetterEditor";
 import type { MatchesSectionProps } from "../type";
 
 function getLocationBadge(label: string) {
@@ -73,6 +84,7 @@ export default function MatchesSection({
   analysisResults,
   analysisBest,
   analyzing,
+  analysisProgress,
   selectionError,
   analysisError,
   selectionResult,
@@ -86,8 +98,14 @@ export default function MatchesSection({
   onApplyToneChange,
   onPrepareApply,
 }: MatchesSectionProps) {
+  const { sessionProfile } = useSession();
   if (!hasLoadedMatches) {
-    const analyzedEntries = Object.values(analyzedJobDetails);
+    const analyzedEntries = Object.values(analyzedJobDetails).sort((a, b) => {
+      const gradeOrder = ["A", "B", "C", "D"];
+      const aGrade = (analysisResults[a.job_id]?.grade ?? "D").toUpperCase();
+      const bGrade = (analysisResults[b.job_id]?.grade ?? "D").toUpperCase();
+      return gradeOrder.indexOf(aGrade) - gradeOrder.indexOf(bGrade);
+    });
     return (
       <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -337,6 +355,22 @@ export default function MatchesSection({
                   </button>
                 </div>
               </div>
+              {analyzing ? (
+                <div className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold text-slate-200">
+                      {analysisProgress
+                        ? `Analyzing selections… ${analysisProgress.current} of ${analysisProgress.total} (${analysisProgress.percent}%)`
+                        : "Analyzing selections…"}
+                    </p>
+                  </div>
+                  <Progress
+                    className="mt-3 bar "
+                    value={analysisProgress ? analysisProgress.percent : null}
+                    max={100}
+                  />
+                </div>
+              ) : null}
 
               {selectionError ? (
                 <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
@@ -447,6 +481,54 @@ export default function MatchesSection({
                             <div className="h-3 w-1/2 rounded bg-slate-800 animate-pulse" />
                           </div>
                         ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <button
+                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                                type="button"
+                              >
+                                Tailor resume for ATS
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Tailor resume for ATS</DialogTitle>
+                                <DialogDescription>
+                                  We will tailor your resume to better match this job post
+                                  and improve ATS alignment. (Coming next)
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="text-sm text-slate-500">
+                                Job: {match.title} at {match.company}
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <button
+                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                                type="button"
+                              >
+                                Edit cover letter
+                              </button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Cover letter editor</DialogTitle>
+                                <DialogDescription>
+                                  Generate, review, and accept AI suggestions before applying.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <CoverLetterEditor
+                                sessionId={sessionProfile?.session_id ?? null}
+                                jobId={match.job_id}
+                                jobTitle={match.title}
+                                companyName={match.company}
+                              />
+                            </DialogContent>
+                          </Dialog>
+                        </div>
                         {match.pay_ranges && match.pay_ranges.length > 0 ? (
                           <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-200">
                             <p className="font-semibold text-emerald-100">

@@ -91,6 +91,25 @@
   * {
     @apply border-border outline-ring/50;
   }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.79 0 0 / 35%) transparent !important;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.79 0 0 / 35%) !important;
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.79 0 0 / 55%) !important;
+  }
   body {
     @apply bg-background text-foreground;
   }

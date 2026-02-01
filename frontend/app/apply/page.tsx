@@ -166,7 +166,8 @@ export default function ApplyPage() {
 
   useEffect(() => {
     if (jobs.length === 0) return;
-    loadGreenhouseForms(jobs.map((job) => job.job_id));
+    const activeJobs = jobs.filter((job) => job.is_active !== false);
+    loadGreenhouseForms(activeJobs.map((job) => job.job_id));
   }, [jobs]);
 
 
@@ -358,23 +359,37 @@ export default function ApplyPage() {
           const form = formState[job.job_id];
           const greenhouse = jobForms[job.job_id];
           const complianceKeys = buildComplianceKeys(greenhouse);
+          const isInactive = job.is_active === false;
           return (
             <div
               key={job.job_id}
               className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200"
             >
-              <p className="text-base font-semibold text-white">{job.title}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-base font-semibold text-white">{job.title}</p>
+                {job.is_active === false ? (
+                  <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-200">
+                    Inactive
+                  </span>
+                ) : null}
+              </div>
               <p className="text-xs text-slate-400">{job.company}</p>
               <p className="mt-2 text-xs text-slate-400">{job.location}</p>
               <p className="mt-2 text-xs text-slate-500">
                 Resume text will be submitted from your uploaded resume.
               </p>
 
-              {loadingForms && !greenhouse ? (
+              {isInactive ? (
+                <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-200">
+                  This job is no longer active. We keep it here for reference.
+                </div>
+              ) : null}
+
+              {!isInactive && loadingForms && !greenhouse ? (
                 <div className="mt-4 text-xs text-slate-400">Loading form...</div>
               ) : null}
 
-              {greenhouse ? (
+              {!isInactive && greenhouse ? (
                 <div className="mt-4 space-y-4">
                   {[...(greenhouse.questions ?? []), ...(greenhouse.location_questions ?? [])].map(
                     (question, qIndex) => (
@@ -591,7 +606,9 @@ export default function ApplyPage() {
                     className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950"
                     type="button"
                     onClick={() => submitApplication(job.job_id)}
-                    disabled={submitState[job.job_id]?.status === "submitting"}
+                    disabled={
+                      isInactive || submitState[job.job_id]?.status === "submitting"
+                    }
                   >
                     {submitState[job.job_id]?.status === "submitting"
                       ? "Submitting..."
@@ -613,6 +630,7 @@ export default function ApplyPage() {
                   className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
                   onClick={() => prepareApply(job.job_id)}
                   type="button"
+                  disabled={isInactive}
                 >
                   Prepare cover letter
                 </button>

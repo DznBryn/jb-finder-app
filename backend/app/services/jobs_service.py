@@ -33,8 +33,14 @@ def upsert_jobs(
     """Insert or update job listings from an ATS adapter."""
 
     count = 0
-    for job in jobs:
-        logger.info("Processing job source_id=%s company=%s", job.get("source_job_id"), company_name or job.get("company"))
+    job_list = list(jobs)
+    refresh_time = datetime.utcnow()
+    for job in job_list:
+        logger.info(
+            "Processing job source_id=%s company=%s",
+            job.get("source_job_id"),
+            company_name or job.get("company"),
+        )
         existing = (
             db.query(JobListing)
             .filter(
@@ -56,7 +62,8 @@ def upsert_jobs(
             "source": source,
             "source_job_id": job.get("source_job_id", ""),
             "apply_url": job.get("apply_url", ""),
-            "updated_at": datetime.utcnow(),
+            "is_active": True,
+            "updated_at": refresh_time,
         }
 
         if existing:
@@ -65,6 +72,16 @@ def upsert_jobs(
         else:
             db.add(JobListing(**payload))
         count += 1
+
+    inactive_query = db.query(JobListing).filter(JobListing.source == source)
+    if company_id is not None:
+        inactive_query = inactive_query.filter(JobListing.company_id == company_id)
+    elif company_name:
+        inactive_query = inactive_query.filter(JobListing.company_name == company_name)
+    inactive_query = inactive_query.filter(JobListing.updated_at < refresh_time)
+    inactive_query.update(
+        {"is_active": False, "updated_at": refresh_time}, synchronize_session=False
+    )
 
     db.commit()
     logger.info("Upserted %s jobs for %s", count, company_name or source)

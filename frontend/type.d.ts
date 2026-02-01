@@ -40,6 +40,7 @@ export type LearningResourceGroup = {
   skill: string;
   category: string;
   relevant: boolean;
+  summary?: string | null;
   resources: LearningResource[];
 };
 
@@ -50,6 +51,69 @@ export type DeepAnalyzeResponse = {
   rationale: string;
   missing_skills: string[];
   learning_resources: LearningResourceGroup[];
+};
+
+export type ResumeTextResponse = {
+  session_id: string;
+  resume_text: string;
+};
+
+export type ResumeReviewResponse = {
+  session_id: string;
+  job_id: string;
+  summary: string;
+  strengths: string[];
+  gaps: string[];
+  missing_required_skills: string[];
+  changes: string[];
+  rewording: string[];
+  vocabulary: string[];
+};
+
+export type CoverLetterVersion = {
+  id: number;
+  document_id: number;
+  job_id: string;
+  content: string;
+  created_at: string;
+  created_by: string;
+  intent?: string | null;
+  base_hash?: string | null;
+  result_hash?: string | null;
+};
+
+export type CoverLetterDocumentResponse = {
+  document_id: number;
+  session_id: string;
+  job_id: string;
+  draft_content: string;
+  draft_hash: string;
+  current_version_id?: number | null;
+  versions: CoverLetterVersion[];
+};
+
+export type CoverLetterDraftResponse = {
+  document_id: number;
+  session_id: string;
+  job_id: string;
+  draft_content: string;
+  draft_hash: string;
+  updated_at: string;
+};
+
+export type CoverLetterSuggestResponse = {
+  base_hash: string;
+  ops: Array<{
+    type: "replace" | "insert" | "delete";
+    start?: number;
+    end?: number;
+    pos?: number;
+    text?: string;
+  }>;
+  preview: string;
+  diff: string;
+  explanation: string;
+  warnings: string[];
 };
 
 export type AnalyzedJobDetail = {
@@ -91,6 +155,7 @@ export type MatchResult = {
     title?: string;
     blurb?: string;
   }>;
+  is_active?: boolean;
   score: number;
   tier: string;
   reasons: string[];
@@ -148,6 +213,11 @@ export type MatchesSectionProps = {
   analysisResults: Record<string, AnalyzeResult | null>;
   analysisBest: string | null;
   analyzing: boolean;
+  analysisProgress: {
+    current: number;
+    total: number;
+    percent: number;
+  } | null;
   selectionError: string | null;
   analysisError: string | null;
   selectionResult: SelectionResponse | null;
@@ -168,6 +238,7 @@ export type SelectedJob = {
   title: string;
   location: string;
   apply_url: string;
+  is_active?: boolean;
 };
 
 export type GreenhouseFieldValue = { value: number | string; label: string };

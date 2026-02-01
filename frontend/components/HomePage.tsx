@@ -54,6 +54,11 @@ export default function HomepageClient() {
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<{
+    current: number;
+    total: number;
+    percent: number;
+  } | null>(null);
   const [applyResults, setApplyResults] = useState<
     Record<string, ApplyResult | null>
   >({});
@@ -358,66 +363,102 @@ export default function HomepageClient() {
     }
     setAnalyzing(true);
     setAnalysisError(null);
+    setAnalysisProgress(null);
     try {
-      const response = await fetch(`${apiBase}/api/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionProfile.session_id,
-          job_ids: unanalyzedSelected,
-        }),
-      });
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(detail || "Analysis failed.");
-      }
-      const data = (await response.json()) as {
-        results: AnalyzeResult[];
-        best_match_job_id?: string | null;
+      const total = unanalyzedSelected.length;
+      setAnalysisProgress({ current: 0, total, percent: 0 });
+
+      const nextResults: Record<string, AnalyzeResult | null> = {
+        ...analysisResults,
       };
-      const mapped = data.results.reduce<Record<string, AnalyzeResult>>(
-        (acc, result) => {
-          acc[result.job_id] = result;
-          return acc;
-        },
-        {}
-      );
-      const mergedResults = { ...analysisResults, ...mapped };
-      setAnalysisResults(mergedResults);
-      setAnalysisBest(data.best_match_job_id ?? null);
-      const analyzedIds = data.results.map((result) => result.job_id);
-      const mergedAnalyzed = Array.from(
-        new Set([...analyzedJobIds, ...analyzedIds])
-      );
-      setAnalyzedJobIds(mergedAnalyzed);
-      if (typeof window !== "undefined") {
-        const storageKey = `analyzed_jobs_${sessionProfile.session_id}`;
-        window.localStorage.setItem(storageKey, JSON.stringify(mergedAnalyzed));
-        const resultsKey = `analysis_results_${sessionProfile.session_id}`;
-        window.localStorage.setItem(resultsKey, JSON.stringify(mergedResults));
-      }
-      const detailsMap = data.results.reduce<Record<string, AnalyzedJobDetail>>(
-        (acc, result) => {
-          const match = matches.find((item) => item.job_id === result.job_id);
-          if (!match) return acc;
-          acc[result.job_id] = {
-            job_id: match.job_id,
-            title: match.title,
-            company: match.company,
-            location: match.location,
-            apply_url: match.apply_url,
-          };
-          return acc;
-        },
-        {}
-      );
-      if (Object.keys(detailsMap).length > 0) {
-        setAnalyzedJobDetails((prev) => ({ ...prev, ...detailsMap }));
-        if (typeof window !== "undefined") {
-          const detailsKey = `analyzed_job_details_${sessionProfile.session_id}`;
-          const merged = { ...analyzedJobDetails, ...detailsMap };
-          window.localStorage.setItem(detailsKey, JSON.stringify(merged));
+      const nextAnalyzedIds = new Set<string>(analyzedJobIds);
+      const nextDetails: Record<string, AnalyzedJobDetail> = {
+        ...analyzedJobDetails,
+      };
+
+      let bestJobId: string | null = analysisBest;
+      let bestRank = bestJobId ? -1 : Number.POSITIVE_INFINITY;
+      let bestScore = bestJobId
+        ? matches.find((m) => m.job_id === bestJobId)?.score ?? -1
+        : -1;
+      const gradeRank = (grade: string) =>
+        ["A", "B", "C", "D"].indexOf((grade ?? "D").toUpperCase());
+
+      for (let index = 0; index < total; index += 1) {
+        const jobId = unanalyzedSelected[index];
+        const response = await fetch(`${apiBase}/api/analyze`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionProfile.session_id,
+            job_ids: [jobId],
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error(detail || "Analysis failed.");
         }
+
+        const data = (await response.json()) as {
+          results: AnalyzeResult[];
+        };
+
+        const result = data.results?.[0];
+        if (result) {
+          nextResults[result.job_id] = result;
+          nextAnalyzedIds.add(result.job_id);
+
+          const match = matches.find((item) => item.job_id === result.job_id);
+          if (match) {
+            nextDetails[result.job_id] = {
+              job_id: match.job_id,
+              title: match.title,
+              company: match.company,
+              location: match.location,
+              apply_url: match.apply_url,
+            };
+
+            const rank = gradeRank(result.grade);
+            if (
+              bestJobId === null ||
+              bestRank < 0 ||
+              rank < bestRank ||
+              (rank === bestRank && match.score > bestScore)
+            ) {
+              bestJobId = result.job_id;
+              bestRank = rank;
+              bestScore = match.score;
+            }
+          }
+        }
+
+        const current = index + 1;
+        setAnalysisProgress({
+          current,
+          total,
+          percent: Math.min(99, Math.floor((current / total) * 100)),
+        });
+      }
+
+      setAnalysisResults(nextResults);
+      setAnalyzedJobIds(Array.from(nextAnalyzedIds));
+      setAnalyzedJobDetails(nextDetails);
+      setAnalysisBest(bestJobId);
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          `analyzed_jobs_${sessionProfile.session_id}`,
+          JSON.stringify(Array.from(nextAnalyzedIds))
+        );
+        window.localStorage.setItem(
+          `analysis_results_${sessionProfile.session_id}`,
+          JSON.stringify(nextResults)
+        );
+        window.localStorage.setItem(
+          `analyzed_job_details_${sessionProfile.session_id}`,
+          JSON.stringify(nextDetails)
+        );
       }
     } catch (error) {
       setAnalysisError(
@@ -425,6 +466,7 @@ export default function HomepageClient() {
       );
     } finally {
       setAnalyzing(false);
+      setAnalysisProgress(null);
     }
   };
 
@@ -477,6 +519,7 @@ export default function HomepageClient() {
     analyzedJobDetails: analyzedJobDetails,
     analysisBest: analysisBest,
     analyzing: analyzing,
+    analysisProgress: analysisProgress,
     selectionError: selectionError,
     analysisError: analysisError,
     selectionResult: selectionResult,

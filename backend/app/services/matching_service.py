@@ -147,7 +147,11 @@ def build_matches(
         pay_range,
     )
 
-    jobs_query = db.query(JobListing).order_by(JobListing.updated_at.desc())
+    jobs_query = (
+        db.query(JobListing)
+        .filter(JobListing.is_active.is_(True))
+        .order_by(JobListing.updated_at.desc())
+    )
     all_jobs = jobs_query.all()
     filtered_jobs = []
     for job in all_jobs:
@@ -184,6 +188,7 @@ def build_matches(
                 "title": job.title,
                 "location": job.location,
                 "pay_ranges": job.pay_ranges or [],
+                "is_active": job.is_active,
                 "score": score,
                 "tier": tier,
                 "reasons": [

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.db_models import JobListing, SessionRecord
+from app.models.db_models import DeepAnalysisRecord, JobListing, SessionRecord
 from app.services.llm_service import (
     analyze_job_matches,
     extract_job_skills,
@@ -80,14 +81,12 @@ def analyze_selected_jobs(
     grade_order = ["A", "B", "C", "D"]
     
     def _apply_missing_penalty(grade: str, missing_count: int) -> str:
+        """Apply a light penalty only when there are many missing skills."""
+
         if grade not in grade_order:
             return grade
         penalty = 0
-        if missing_count >= 6:
-            penalty = 3
-        elif missing_count >= 3:
-            penalty = 2
-        elif missing_count >= 1:
+        if missing_count >= 8:
             penalty = 1
         new_index = min(len(grade_order) - 1, grade_order.index(grade) + penalty)
         return grade_order[new_index]
@@ -152,6 +151,10 @@ def deep_analyze_job(
 ) -> Dict[str, object]:
     """Return a deep analysis with learning resources for a single job."""
 
+    cached = get_deep_analysis(db, session.id, job_id)
+    if cached:
+        return cached
+
     analysis = analyze_selected_jobs(db, session, [job_id])
     result = (analysis.get("results") or [{}])[0]
 
@@ -181,7 +184,38 @@ def deep_analyze_job(
         result.get("missing_skills", []),
     )
 
-    return {
+    payload = {
         **result,
         "learning_resources": learning_resources,
     }
+    payload["session_id"] = session.id
+    payload["job_id"] = job_id
+
+    record = DeepAnalysisRecord(
+        session_id=session.id,
+        job_id=str(job_id),
+        payload=payload,
+        created_at=datetime.utcnow(),
+    )
+    db.add(record)
+    db.commit()
+
+    return payload
+
+
+def get_deep_analysis(
+    db: Session, session_id: str, job_id: str
+) -> Optional[Dict[str, object]]:
+    """Return cached deep analysis for a session + job if available."""
+
+    record = (
+        db.query(DeepAnalysisRecord)
+        .filter(
+            DeepAnalysisRecord.session_id == str(session_id),
+            DeepAnalysisRecord.job_id == str(job_id),
+        )
+        .first()
+    )
+    if not record:
+        return None
+    return record.payload

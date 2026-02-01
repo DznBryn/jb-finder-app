@@ -4,7 +4,7 @@ import json
 from typing import Dict
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.models.schemas import (
@@ -12,8 +12,18 @@ from app.models.schemas import (
     ApplyPrepareResponse,
     AnalyzeRequest,
     AnalyzeResponse,
+    CoverLetterDocumentResponse,
+    CoverLetterDraftRequest,
+    CoverLetterDraftResponse,
+    CoverLetterSuggestRequest,
+    CoverLetterSuggestResponse,
+    CoverLetterVersionCreateRequest,
+    CoverLetterDocumentVersion,
     DeepAnalyzeRequest,
     DeepAnalyzeResponse,
+    ResumeReviewRequest,
+    ResumeReviewResponse,
+    ResumeTextResponse,
     CheckoutRequest,
     CheckoutResponse,
     GreenhouseApplyRequest,
@@ -27,7 +37,11 @@ from app.models.schemas import (
     SubscriptionStatusResponse,
 )
 from app.services.apply_service import prepare_cover_letter
-from app.services.analysis_service import analyze_selected_jobs, deep_analyze_job
+from app.services.analysis_service import (
+    analyze_selected_jobs,
+    deep_analyze_job,
+    get_deep_analysis,
+)
 from app.services.greenhouse_service import retrieve_job_post, submit_application
 from app.services.matching_service import build_matches
 from app.services.jobs_service import list_jobs_by_ids
@@ -41,6 +55,9 @@ from app.services.payment_service import (
 )
 from app.db import get_db
 from app.services.llm_service import parse_resume_text
+from app.services.llm_service import suggest_cover_letter_edits
+from app.models.db_models import JobListing
+from app.services.llm_service import review_resume_for_job
 from app.services.resume_parser import parse_resume_file
 from app.services.session_service import (
     create_session,
@@ -49,6 +66,16 @@ from app.services.session_service import (
     save_job_selections,
 )
 from app.services.storage_service import save_resume_file
+from app.services.cover_letter_service import (
+    apply_ops,
+    compute_diff,
+    get_document_with_versions,
+    get_or_create_document,
+    hash_content,
+    save_draft,
+    save_version,
+)
+from app.rate_limiter import limiter
 from pprint import pprint
 
 router = APIRouter()
@@ -66,7 +93,7 @@ def upload_resume(
     file_bytes = file.file.read()
     resume_text = parse_resume_file(file.filename, file_bytes)
     resume_s3_key = save_resume_file(file.filename, file_bytes)
-    pprint(f'Resume text: {resume_text}')
+
     parsed = parse_resume_text(resume_text)
     record = create_session(
         db=db,
@@ -135,6 +162,190 @@ def session_profile(session_id: UUID, db: Session = Depends(get_db)) -> SessionP
         social_links=session.social_links or [],
         created_at=session.created_at,
         expires_at=session.expires_at,
+    )
+
+
+@router.get("/api/session/resume", response_model=ResumeTextResponse)
+def session_resume(session_id: UUID, db: Session = Depends(get_db)) -> ResumeTextResponse:
+    """Return resume text for the current session."""
+
+    session = get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    return ResumeTextResponse(session_id=UUID(session.id), resume_text=session.resume_text)
+
+
+@router.get("/api/editor/document", response_model=CoverLetterDocumentResponse)
+def cover_letter_document(
+    session_id: UUID, job_id: str, db: Session = Depends(get_db)
+) -> CoverLetterDocumentResponse:
+    """Return cover letter document, draft, and versions."""
+
+    session = get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    data = get_document_with_versions(db, str(session_id), job_id)
+    draft_hash = hash_content(data.document.draft_content or "")
+    return CoverLetterDocumentResponse(
+        document_id=data.document.id,
+        session_id=session_id,
+        job_id=job_id,
+        draft_content=data.document.draft_content or "",
+        draft_hash=draft_hash,
+        current_version_id=data.document.current_version_id,
+        versions=[
+            CoverLetterDocumentVersion(
+                id=version.id,
+                document_id=version.document_id,
+                job_id=version.job_id,
+                content=version.content,
+                created_at=version.created_at,
+                created_by=version.created_by,
+                intent=version.intent,
+                base_hash=version.base_hash,
+                result_hash=version.result_hash,
+            )
+            for version in data.versions
+        ],
+    )
+
+
+@router.post("/api/editor/draft", response_model=CoverLetterDraftResponse)
+def cover_letter_draft(
+    payload: CoverLetterDraftRequest, db: Session = Depends(get_db)
+) -> CoverLetterDraftResponse:
+    """Save cover letter draft content."""
+
+    session = get_session(db, payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    document = get_or_create_document(db, str(payload.session_id), payload.job_id)
+    current_hash = hash_content(document.draft_content or "")
+    if payload.base_hash and payload.base_hash != current_hash:
+        raise HTTPException(status_code=409, detail="Draft is out of date.")
+
+    saved = save_draft(db, document, payload.content)
+    return CoverLetterDraftResponse(
+        document_id=saved.id,
+        session_id=payload.session_id,
+        job_id=payload.job_id,
+        draft_content=saved.draft_content,
+        draft_hash=hash_content(saved.draft_content or ""),
+        updated_at=saved.updated_at,
+    )
+
+
+@router.post("/api/editor/version", response_model=CoverLetterDocumentVersion)
+def cover_letter_version(
+    payload: CoverLetterVersionCreateRequest, db: Session = Depends(get_db)
+) -> CoverLetterDocumentVersion:
+    """Create a new cover letter version."""
+
+    session = get_session(db, payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    document = get_or_create_document(db, str(payload.session_id), payload.job_id)
+    current_hash = hash_content(document.draft_content or "")
+    if payload.base_hash and payload.base_hash != current_hash:
+        raise HTTPException(status_code=409, detail="Draft is out of date.")
+
+    version = save_version(
+        db,
+        document,
+        payload.content,
+        intent=payload.intent,
+        created_by="user",
+        base_hash=payload.base_hash,
+    )
+    return CoverLetterDocumentVersion(
+        id=version.id,
+        document_id=version.document_id,
+        job_id=version.job_id,
+        content=version.content,
+        created_at=version.created_at,
+        created_by=version.created_by,
+        intent=version.intent,
+        base_hash=version.base_hash,
+        result_hash=version.result_hash,
+    )
+
+
+@router.post("/api/editor/suggest", response_model=CoverLetterSuggestResponse)
+@limiter.limit("12/minute")
+def cover_letter_suggest(
+    payload: CoverLetterSuggestRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> CoverLetterSuggestResponse:
+    """Generate AI patch ops for cover letter content."""
+
+    session = get_session(db, payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    _ = get_or_create_document(db, str(payload.session_id), payload.job_id)
+    base_hash = hash_content(payload.content or "")
+    if payload.base_hash and payload.base_hash != base_hash:
+        raise HTTPException(status_code=409, detail="Draft hash mismatch.")
+
+    job_context = ""
+    try:
+        job_payload = retrieve_job_post(db, payload.job_id)
+        job_context = str(job_payload.get("content") or "")
+    except Exception:
+        try:
+            job_int = int(payload.job_id)
+        except ValueError:
+            job_int = None
+        if job_int is not None:
+            job = db.query(JobListing).filter(JobListing.id == job_int).first()
+            if job:
+                job_context = job.description or ""
+
+    resume_facts = payload.resume_facts or []
+    if not resume_facts:
+        if session.llm_summary:
+            resume_facts.append(f"Summary: {session.llm_summary}")
+        if session.extracted_skills:
+            resume_facts.append("Skills: " + ", ".join(session.extracted_skills[:25]))
+        if session.inferred_titles:
+            resume_facts.append("Titles: " + ", ".join(session.inferred_titles[:5]))
+        if session.years_experience:
+            resume_facts.append(f"Years of experience: {session.years_experience}")
+
+    result = suggest_cover_letter_edits(
+        content=payload.content or "",
+        resume_facts=resume_facts,
+        job_context=job_context,
+        intent=payload.intent,
+        constraints=payload.constraints,
+        selection=payload.selection,
+    )
+    ops = result.get("ops", [])
+    explanation = result.get("explanation", "")
+    warnings = list(result.get("warnings", []) or [])
+
+    try:
+        preview = apply_ops(payload.content or "", ops)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    diff = compute_diff(payload.content or "", preview)
+    word_count = len(preview.split())
+    if word_count > 400:
+        warnings.append("Cover letter exceeds 400 words; consider shortening.")
+
+    return CoverLetterSuggestResponse(
+        base_hash=base_hash,
+        ops=ops,
+        preview=preview,
+        diff=diff,
+        explanation=explanation,
+        warnings=warnings,
     )
 
 
@@ -242,8 +453,9 @@ def create_checkout(payload: CheckoutRequest) -> CheckoutResponse:
 
 
 @router.post("/api/analyze", response_model=AnalyzeResponse)
+@limiter.limit("10/minute")
 def analyze_selections(
-    payload: AnalyzeRequest, db: Session = Depends(get_db)
+    payload: AnalyzeRequest, request: Request, db: Session = Depends(get_db)
 ) -> AnalyzeResponse:
     """Analyze selected jobs with the LLM and return grades."""
 
@@ -260,14 +472,19 @@ def analyze_selections(
 
 
 @router.post("/api/analyze/deep", response_model=DeepAnalyzeResponse)
+@limiter.limit("3/minute")
 def analyze_deep(
-    payload: DeepAnalyzeRequest, db: Session = Depends(get_db)
+    payload: DeepAnalyzeRequest, request: Request, db: Session = Depends(get_db)
 ) -> DeepAnalyzeResponse:
     """Deep analysis with learning resources for a single job."""
 
     session = get_session(db, payload.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    cached = get_deep_analysis(db, str(payload.session_id), payload.job_id)
+    if cached:
+        return DeepAnalyzeResponse(**cached)
 
     try:
         result = deep_analyze_job(db, session, payload.job_id)
@@ -283,6 +500,65 @@ def analyze_deep(
         rationale=result.get("rationale", ""),
         missing_skills=result.get("missing_skills", []),
         learning_resources=result.get("learning_resources", []),
+    )
+
+
+@router.get("/api/analyze/deep", response_model=DeepAnalyzeResponse)
+def get_deep_analyze(
+    session_id: UUID, job_id: str, db: Session = Depends(get_db)
+) -> DeepAnalyzeResponse:
+    """Return cached deep analysis for a session + job."""
+
+    session = get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    cached = get_deep_analysis(db, str(session_id), job_id)
+    if not cached:
+        raise HTTPException(status_code=404, detail="Deep analysis not found.")
+
+    return DeepAnalyzeResponse(**cached)
+
+
+@router.post("/api/resume/review", response_model=ResumeReviewResponse)
+@limiter.limit("5/minute")
+def resume_review(
+    payload: ResumeReviewRequest, request: Request, db: Session = Depends(get_db)
+) -> ResumeReviewResponse:
+    """Review a resume against a job posting."""
+
+    session = get_session(db, payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    try:
+        job_int = int(payload.job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid job id.") from exc
+
+    job = db.query(JobListing).filter(JobListing.id == job_int).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    review = review_resume_for_job(
+        session.resume_text,
+        {
+            "title": job.title,
+            "company": job.company_name,
+            "description": job.description or "",
+        },
+    )
+
+    return ResumeReviewResponse(
+        session_id=payload.session_id,
+        job_id=str(payload.job_id),
+        summary=review.get("summary", ""),
+        strengths=review.get("strengths", []),
+        gaps=review.get("gaps", []),
+        missing_required_skills=review.get("missing_required_skills", []),
+        changes=review.get("changes", []),
+        rewording=review.get("rewording", []),
+        vocabulary=review.get("vocabulary", []),
     )
 
 
@@ -347,6 +623,7 @@ def selected_job_details(
             title=job.title,
             location=job.location,
             apply_url=job.apply_url,
+            is_active=job.is_active,
         )
         for job in jobs
     ]

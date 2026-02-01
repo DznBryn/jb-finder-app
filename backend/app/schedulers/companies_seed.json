@@ -45,5 +45,23 @@
   { "name": "Flexport", "website": "https://www.flexport.com", "greenhouse_token": "flexport" },
   { "name": "Oscar Health", "website": "https://www.hioscar.com", "greenhouse_token": "oscar" },
   { "name": "Handshake", "website": "https://joinhandshake.com", "greenhouse_token": "handshake" },
-  { "name": "Indeed", "website": "https://www.indeed.com", "greenhouse_token": "indeed" }
+  { "name": "Indeed", "website": "https://www.indeed.com", "greenhouse_token": "indeed" },
+
+  { "name": "Fleetio", "website": "https://www.fleetio.com", "greenhouse_token": "fleetio" },
+  { "name": "Ripple", "website": "https://ripple.com", "greenhouse_token": "ripple" },
+  { "name": "Media.Monks", "website": "https://www.monks.com", "greenhouse_token": "monks" },
+  { "name": "The Good Food Institute", "website": "https://gfi.org", "greenhouse_token": "thegoodfoodinstitute80" },
+  { "name": "SpaceX", "website": "https://www.spacex.com", "greenhouse_token": "spacex" },
+  { "name": "Practice Better", "website": "https://practicebetter.io", "greenhouse_token": "practicebetter" },
+  { "name": "Transcarent", "website": "https://www.transcarent.com", "greenhouse_token": "transcarent" },
+  { "name": "Array", "website": "https://array.com", "greenhouse_token": "array" },
+
+  { "name": "xAI", "website": "https://x.ai", "greenhouse_token": "xai" },
+  { "name": "The Pokémon Company International", "website": "https://www.pokemon.com", "greenhouse_token": "pokemoncareers" },
+  { "name": "Thumbtack", "website": "https://www.thumbtack.com", "greenhouse_token": "thumbtack" },
+  { "name": "Opendoor", "website": "https://www.opendoor.com", "greenhouse_token": "opendoor" },
+  { "name": "DEPT®", "website": "https://www.deptagency.com", "greenhouse_token": "dept" },
+  { "name": "Assembly Health", "website": "https://assemblyhealth.com", "greenhouse_token": "assemblyhealth" },
+  { "name": "Innovecs", "website": "https://innovecs.com", "greenhouse_token": "innovecs" },
+  { "name": "Open Energy Transition", "website": "https://openenergytransition.org", "greenhouse_token": "openenergytransition" }
 ]

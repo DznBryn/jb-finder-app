@@ -49,38 +49,66 @@ todos:
 
 Data model should include a `user_type` field from the start to support future expansion.
 
-## Monetization (MVP)
+## Monetization (MVP) — Token-Based "Finder Credits"
 
-### Pricing Tiers
+### Core Concept
 
-| Feature | Free | Pro |
-|---------|------|-----|
-| Job selections | 5/day | Unlimited |
-| Job analysis (LLM grades) | 5/month (per IP) | 20/month |
-| View match scores + reasons | Yes | Yes |
-| Cover letter generation | No | Yes (unlimited) |
-| Saved application history | No | Yes |
-| Account persistence | No (24hr session) | Yes |
-| **Price** | $0 | **$15/month** OR **$29 one-time (30 days)** |
+Instead of exposing raw LLM tokens (confusing to users), sell **"Finder Credits"**:
+- **1 Credit ≈ 1,000 LLM tokens** (~750 words)
+- Users buy a monthly allowance or top-up packs
+- Show users the "credit cost" before they run expensive actions (Deep Analysis, Resume Tailoring)
+
+### Subscription Tiers
+
+| Plan | Target | Price | Allowance | Key Features |
+|------|--------|-------|-----------|--------------|
+| **Job Seeker** (Basic) | Casual hunters (<5 roles/week) | $9.99/mo | 500 Credits (500k tokens) | Resume Parsing (free), Match Analysis (~5 cr/job), Deep Analysis (~15 cr/job), Basic Resume Tailoring (~20 cr/job) |
+| **Power Applier** (Pro) | Active seekers, many roles | $24.99/mo | 2,500 Credits (2.5M tokens) | Everything in Basic + Priority Processing, Advanced Resume Tailoring, Cover Letter Generator (~30 cr/doc) |
+| **On-Demand** (Pay-as-you-go) | One-time need | $5 one-time | 200 Credits | For users who need one deep analysis + tailored resume immediately |
+
+### Feature Credit Costs
+
+| Feature | Estimated Credits |
+|---------|-------------------|
+| Resume Parsing | Free (low cost) |
+| Match Analysis (Grade A-D) | ~5 credits/job |
+| Deep Analysis (Learning Resources) | ~15 credits/job |
+| Basic Resume Tailoring | ~20 credits/job |
+| Cover Letter Generation | ~30 credits/doc |
 
 ### Payment Provider
 - **Stripe** for subscriptions and one-time payments
 - Stripe Checkout for payment flow (hosted, PCI-compliant)
 - Webhooks for subscription lifecycle (created, renewed, cancelled)
 
-### Cost Structure
-- **OpenAI API**: ~$0.01-0.05 per cover letter (GPT-4/5)
-- **AWS**: Minimal at MVP scale (~$50-100/month)
-- **Margin**: At $15/mo with ~10 cover letters/user = ~$0.50 LLM cost = healthy margin
+### Implementation Strategy (Backend)
 
-### Free Tier Limits
-- Tracked per session (unauthenticated) or per user (authenticated)
-- Daily reset at midnight UTC
-- Redis counter: `selections:{session_id}:{date}` with TTL
-- Analysis credits tracked monthly (per IP when unauthenticated)
-### Pro Credits (Planned)
-- 20 analysis credits per month (tracked per user)
-- Later: sell add-on analysis credit packs
+**Database updates:**
+- Add `credit_balance` column to `SessionRecord`
+- Rename `count` to `tokens_used` in `AnalysisUsage`
+
+**Usage service updates:**
+- Deduct tokens/credits instead of incrementing a counter
+- Use `total_tokens` from `_log_usage` in `llm_service.py` for exact deduction
+
+### Implementation Strategy (Frontend)
+
+- **Credit Balance Display:** Show "Credits: 1,250" in header
+- **Cost Estimates:** "Analyze this job? (Est. ~50 credits)", "Deep Analysis (Est. ~150 credits)"
+- **Out of Credits:** Trigger Stripe Checkout modal when balance is too low for an action
+
+### LLM Cost Control (Margins)
+
+- **GPT-5.2** ($1.75/$14 per 1M tokens) is expensive
+- **Optimization:** Use GPT-5-Standard ($1.25/$10) or cheaper reasoning model for "Match Analysis" (Grade A-D)
+- Reserve expensive GPT-5.2 only for "Deep Analysis" and "Resume Tailoring" where quality is critical
+- **Caching:** Deep analysis and resume reviews are cached by `job_id` + `session_id` so users don't pay twice for the same result
+
+### Why This Model Works
+
+- **Fairness:** Users pay for what they use. Heavy users cover their own API costs.
+- **Scalability:** Lock in a margin (e.g., 50% markup on token costs) regardless of how heavy the usage is.
+- **Flexibility:** Add new expensive features (e.g., "Mock Interview Chat") without changing plan prices—just set a higher credit cost for that feature.
 
 ## Tech Stack (Finalized)
 
@@ -335,6 +363,124 @@ flowchart LR
 - `POST /api/webhooks/stripe` → handle Stripe events (subscription created, cancelled, etc.)
 - `GET /api/subscription/status` → returns current plan + limits
 - `GET /api/jobs/selected` → list selected jobs for session
+
+## Cover Letter Editor (AI-Assisted)
+
+### Goal
+Allow users to create, update, and delete cover letter content using AI with full user control via diffs, accept/reject, undo, and version history.
+
+### Core UX
+- Single document-first editor (plain text or markdown)
+- AI never edits directly → it returns proposed changes
+- User sees diff preview and chooses: Accept, Reject, Undo (via versions)
+
+### Actions
+- Generate from scratch (if empty; LLM must be grounded in resume facts + job context)
+- Tailor to job
+- Rewrite selection
+- Shorten / expand
+- Change tone
+- Remove fluff
+
+### Frontend
+- Editor: Lexical (plain text editor surface with history + persistence)
+- Diff viewer (word/line-level)
+- Version list (timestamp, jobId)
+- Inline selection support (optional v1)
+- Draft persistence in DB, keyed by `session_id` + `job_id`
+
+### Backend (FastAPI)
+`POST /api/editor/suggest`
+
+**Input**
+```
+{
+  document_id,
+  base_version_id,
+  content,
+  selection?,     // start/end indexes
+  intent,         // e.g. "tailor", "shorten", "rewrite"
+  constraints,    // tone, length
+  job_context,
+  resume_facts
+}
+```
+
+**Output (STRICT)**
+```
+{
+  base_hash,
+  ops: [
+    { type: "replace" | "insert" | "delete", start?, end?, pos?, text? }
+  ],
+  preview,
+  diff,
+  explanation,
+  warnings
+}
+```
+
+### Critical Design Rule
+LLM outputs PATCHES, not raw text. Server applies edits, validates them, and stores accepted edits as new versions.
+
+### Data Model
+- `documents`: id, session_id, type, current_version_id
+- `document_versions`: id, document_id, content, created_at, created_by, job_id
+- Undo = load previous version
+
+### AI Guardrails (Required)
+- Only use facts from:
+  - Resume facts
+  - Job description
+- No invented company metrics or achievements
+- Enforce:
+  - JSON schema validation
+  - Edit bounds checks
+  - Base version hash match
+  - Max length (e.g., 250–400 words)
+- If info is missing → write generic or flag warning
+
+### MVP Scope (Build Order)
+- Lexical editor + paste/edit
+- /suggest API returning diff
+- Tailor / rewrite / shorten actions
+- Accept/reject changes
+- Version history + undo
+
+### v1 Enhancements
+- Inline selection edits
+- Section templates (opening, closing)
+- Hallucination warnings
+- Export (PDF later)
+
+### Non-Goals (Now)
+- Rich text formatting
+- Autonomous agent editing
+- External web/company research
+
+### End-to-End Flow
+```mermaid
+sequenceDiagram
+  participant User as User
+  participant UI as CoverLetterDialog
+  participant API as BackendAPI
+  participant LLM as LLM
+
+  User->>UI: Type_edit_draft
+  UI->>API: Save_draft(session_id,job_id,content)
+
+  User->>UI: Click_action(tailor_or_rewrite)
+  UI->>API: POST_/api/editor/suggest(base_hash,content,intent,job_context,resume_facts)
+  API->>LLM: Request_ops_only
+  LLM-->>API: ops_preview_diff_warnings
+  API->>API: Validate_apply_ops
+  API-->>UI: ops_preview_diff_warnings
+
+  User->>UI: Accept
+  UI->>API: Save_new_version(document_id,content)
+  User->>UI: Undo
+  UI->>API: Load_previous_version
+```
 
 ## Matching Heuristics (Current + Planned)
 

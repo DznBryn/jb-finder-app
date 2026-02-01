@@ -48,6 +48,7 @@ class MatchResult(BaseModel):
     title: str
     location: str
     pay_ranges: List[dict] = []
+    is_active: bool = True
     score: int
     tier: str
     reasons: List[str]
@@ -120,6 +121,7 @@ class SelectedJobDetail(BaseModel):
     title: str
     location: str
     apply_url: str
+    is_active: bool = True
 
 
 class SelectedJobsResponse(BaseModel):
@@ -187,6 +189,7 @@ class LearningResourceGroup(BaseModel):
     skill: str
     category: str
     relevant: bool = True
+    summary: Optional[str] = None
     resources: List[LearningResource] = []
 
 
@@ -206,6 +209,114 @@ class DeepAnalyzeResponse(BaseModel):
     rationale: str
     missing_skills: List[str] = []
     learning_resources: List[LearningResourceGroup] = []
+
+
+class ResumeTextResponse(BaseModel):
+    """Resume text for the current session."""
+
+    session_id: UUID
+    resume_text: str
+
+
+class ResumeReviewRequest(BaseModel):
+    """Payload to review a resume against a job."""
+
+    session_id: UUID
+    job_id: str
+
+
+class ResumeReviewResponse(BaseModel):
+    """Resume review response with actionable feedback."""
+
+    session_id: UUID
+    job_id: str
+    summary: str
+    strengths: List[str] = []
+    gaps: List[str] = []
+    missing_required_skills: List[str] = []
+    changes: List[str] = []
+    rewording: List[str] = []
+    vocabulary: List[str] = []
+
+
+class CoverLetterDocumentVersion(BaseModel):
+    """Version history entry for cover letters."""
+
+    id: int
+    document_id: int
+    job_id: str
+    content: str
+    created_at: datetime
+    created_by: str
+    intent: Optional[str] = None
+    base_hash: Optional[str] = None
+    result_hash: Optional[str] = None
+
+
+class CoverLetterDocumentResponse(BaseModel):
+    """Cover letter document with draft + versions."""
+
+    document_id: int
+    session_id: UUID
+    job_id: str
+    draft_content: str
+    draft_hash: str
+    current_version_id: Optional[int] = None
+    versions: List[CoverLetterDocumentVersion] = []
+
+
+class CoverLetterDraftRequest(BaseModel):
+    """Payload to save a cover letter draft."""
+
+    session_id: UUID
+    job_id: str
+    content: str
+    base_hash: Optional[str] = None
+
+
+class CoverLetterDraftResponse(BaseModel):
+    """Response after saving a draft."""
+
+    document_id: int
+    session_id: UUID
+    job_id: str
+    draft_content: str
+    draft_hash: str
+    updated_at: datetime
+
+
+class CoverLetterSuggestRequest(BaseModel):
+    """Payload to request AI cover letter edits."""
+
+    session_id: UUID
+    job_id: str
+    content: str
+    intent: str
+    selection: Optional[dict] = None
+    constraints: Optional[dict] = None
+    resume_facts: Optional[List[str]] = None
+    base_hash: Optional[str] = None
+
+
+class CoverLetterSuggestResponse(BaseModel):
+    """AI patch response for cover letter editing."""
+
+    base_hash: str
+    ops: List[dict]
+    preview: str
+    diff: str
+    explanation: str
+    warnings: List[str] = []
+
+
+class CoverLetterVersionCreateRequest(BaseModel):
+    """Payload to create a new cover letter version."""
+
+    session_id: UUID
+    job_id: str
+    content: str
+    intent: Optional[str] = None
+    base_hash: Optional[str] = None
 
 
 class GreenhouseApplyRequest(BaseModel):
