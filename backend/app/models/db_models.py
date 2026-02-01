@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, ForeignKey
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -68,8 +68,8 @@ class JobListing(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     company_name: Mapped[str] = mapped_column(String(128))
-    title: Mapped[str] = mapped_column(String(256))
-    location: Mapped[str] = mapped_column(String(256))
+    title: Mapped[str] = mapped_column(Text)
+    location: Mapped[str] = mapped_column(Text)
     remote: Mapped[bool] = mapped_column(Boolean, default=False)
     seniority: Mapped[str] = mapped_column(String(64))
     description: Mapped[str] = mapped_column(Text)
@@ -77,6 +77,7 @@ class JobListing(Base):
     source: Mapped[str] = mapped_column(String(32))
     source_job_id: Mapped[str] = mapped_column(String(128))
     apply_url: Mapped[str] = mapped_column(String(512))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
 
 
@@ -91,3 +92,48 @@ class AnalysisUsage(Base):
     month_key: Mapped[str] = mapped_column(String(16))
     count: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class DeepAnalysisRecord(Base):
+    """Persist deep analysis results per session and job."""
+
+    __tablename__ = "deep_analysis"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(36), index=True)
+    job_id: Mapped[str] = mapped_column(String(64), index=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class CoverLetterDocument(Base):
+    """Cover letter document keyed by session and job."""
+
+    __tablename__ = "cover_letter_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(36), index=True)
+    job_id: Mapped[str] = mapped_column(String(64), index=True)
+    draft_content: Mapped[str] = mapped_column(Text, default="")
+    current_version_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class CoverLetterVersion(Base):
+    """Version history for cover letter documents."""
+
+    __tablename__ = "cover_letter_versions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    document_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("cover_letter_documents.id"), index=True
+    )
+    session_id: Mapped[str] = mapped_column(String(36), index=True)
+    job_id: Mapped[str] = mapped_column(String(64), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    created_by: Mapped[str] = mapped_column(String(32), default="user")
+    intent: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    base_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    result_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

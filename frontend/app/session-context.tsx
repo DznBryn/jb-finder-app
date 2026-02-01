@@ -25,6 +25,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   >({});
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
+  const clearSessionStorage = (sessionId: string) => {
+    window.localStorage.removeItem("session_id");
+    window.localStorage.removeItem(`analyzed_jobs_${sessionId}`);
+    window.localStorage.removeItem(`analysis_results_${sessionId}`);
+    window.localStorage.removeItem(`analyzed_job_details_${sessionId}`);
+    window.localStorage.removeItem(`title_terms_${sessionId}`);
+
+    setSessionProfile(null);
+    setSelectedJobs([]);
+    setAnalysisResults({});
+    setAnalysisBest(null);
+    setAnalyzedJobIds([]);
+    setAnalyzedJobDetails({});
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -75,7 +90,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch(
           `${apiBase}/api/session/profile?session_id=${sessionId}`
         );
-        if (!response.ok) return;
+        if (!response.ok) {
+          // If the backend says the session doesn't exist (or expired), clear local storage.
+          if (response.status === 404) {
+            clearSessionStorage(sessionId);
+          }
+          return;
+        }
         const data = (await response.json()) as SessionProfile;
         setSessionProfile(data);
       } catch {}

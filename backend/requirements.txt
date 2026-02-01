@@ -9,3 +9,6 @@ pdfminer.six
 python-docx
 requests
 beautifulsoup4
+slowapi
+psycopg2-binary
+alembic

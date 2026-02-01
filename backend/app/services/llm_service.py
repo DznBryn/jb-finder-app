@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Dict, List
+from typing import Dict, List, Optional
 from openai import OpenAI
 from pydantic import BaseModel, ValidationError
 
@@ -99,6 +99,7 @@ class LearningResourceGroup(BaseModel):
     skill: str
     category: str
     relevant: bool = True
+    summary: str | None = None
     resources: List[LearningResource] = []
 
 
@@ -106,6 +107,26 @@ class DeepLearningResult(BaseModel):
     """Deep analysis response wrapper."""
 
     learning_resources: List[LearningResourceGroup]
+
+
+class ResumeReviewResult(BaseModel):
+    """Resume review response wrapper."""
+
+    summary: str
+    strengths: List[str] = []
+    gaps: List[str] = []
+    missing_required_skills: List[str] = []
+    changes: List[str] = []
+    rewording: List[str] = []
+    vocabulary: List[str] = []
+
+
+class CoverLetterPatchResult(BaseModel):
+    """Patch ops for cover letter edits."""
+
+    ops: List[dict]
+    explanation: str
+    warnings: List[str] = []
 
 def _fallback_search_query(
     titles: List[str],
@@ -404,10 +425,14 @@ def analyze_job_matches(
 
     system_prompt = (
         "You grade how well each job matches the candidate based on the provided "
-        "resume summary and job data. Missing skills should lower the grade. "
+        "resume summary and job data. Prioritize strong and excellent alignment on "
+        "core/required skills and must-have qualifications. Missing skills should only "
+        "lower the grade if they are clearly required for the role. Do NOT penalize "
+        "nice-to-have, preferred, or optional skills. If missing skills are listed "
+        "without clear requirement, treat them as informational only. "
         "Return ONLY valid JSON with keys: results (array of {job_id, grade, rationale, "
         "missing_skills}) and best_match_job_id. Grades must be one of: A, B, C, D. "
-        "Keep rationale short."
+        "Keep rationale short and emphasize core skill alignment."
     )
 
     user_prompt = json.dumps(
@@ -466,14 +491,16 @@ def generate_learning_resources(
         "for the candidate's missing skills based on the job description. "
         "Use the web_search tool to find the most relevant resources. "
         "Return ONLY valid JSON with key: learning_resources (array of {skill, category, "
-        "relevant, resources}). Categories MUST be one of: tool, framework, software, "
+        "relevant, summary, resources}). Categories MUST be one of: tool, framework, software, "
         "characteristic, system. Mark relevant=false for vague or non-actionable items "
         "(examples: workflow orchestration systems, scalability and reliability engineering). "
-        "Exclude any group where relevant=false. Each resources item is {title, type, url?, notes?}. "
+        "Exclude any group where relevant=false. "
+        "For each skill, include a short 'summary' (1-2 sentences) that explains what the skill is "
+        "and why these specific resources were chosen for this job. "
+        "Each resources item is {title, type, url?, notes?}. "
         "Limit to 3-4 resources per skill. For framework skills (e.g., Ruby on Rails), "
         "include an official documentation link and a beginner-friendly tutorial/video. "
         "If unsure about a URL, omit it and provide a short notes and message to the user. "
-        "If the web_search tool is not available, use the fallback resources."
     )
 
     user_prompt = json.dumps(
@@ -527,6 +554,142 @@ def generate_learning_resources(
             }
             for skill in missing_skills
         ]
+
+
+def review_resume_for_job(resume_text: str, job: Dict[str, object]) -> Dict[str, object]:
+    """Review a resume against a job posting and return actionable feedback."""
+
+    if not resume_text.strip():
+        return {
+            "summary": "Resume text is empty or could not be extracted.",
+            "strengths": [],
+            "gaps": ["Resume text missing; unable to evaluate fit."],
+            "missing_required_skills": [],
+            "changes": [],
+            "rewording": [],
+            "vocabulary": [],
+        }
+
+    if not OPENAI_API_KEY:
+        return {
+            "summary": "LLM key missing; resume review unavailable.",
+            "strengths": [],
+            "gaps": [],
+            "missing_required_skills": [],
+            "changes": [],
+            "rewording": [],
+            "vocabulary": [],
+        }
+
+    system_prompt = (
+        "You are an expert resume reviewer and ATS optimization specialist. "
+        "Use ONLY the provided resume text and job details. Do NOT invent experience. "
+        "Identify core/required skills from the job description vs nice-to-haves. "
+        "Missing required skills should be called out explicitly. "
+        "Provide concise, actionable feedback for improving the resume to match this role."
+        "Return ONLY valid JSON with keys: summary (string), strengths (array), gaps (array), "
+        "missing_required_skills (array), changes (array of bullet points), "
+        "rewording (array of suggested reworded bullets), vocabulary (array of key terms)."
+    )
+
+    user_prompt = json.dumps(
+        {
+            "job": {
+                "title": job.get("title"),
+                "company": job.get("company"),
+                "description": (job.get("description") or "")[:6000],
+            },
+            "resume_text": resume_text[:8000],
+        }
+    )
+
+    try:
+        logger.info("LLM resume review start: model=%s", OPENAI_MODEL)
+        response = OpenAI(api_key=OPENAI_API_KEY).responses.create(
+            model=OPENAI_MODEL,
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        _log_usage(response, "resume_review")
+        parsed = json.loads(response.output_text)
+        validated = ResumeReviewResult(**parsed)
+        return validated.model_dump()
+    except (json.JSONDecodeError, ValidationError, Exception):
+        logger.exception("LLM resume review failed.")
+        return {
+            "summary": "Resume review failed. Please try again.",
+            "strengths": [],
+            "gaps": [],
+            "missing_required_skills": [],
+            "changes": [],
+            "rewording": [],
+            "vocabulary": [],
+        }
+
+
+def suggest_cover_letter_edits(
+    content: str,
+    resume_facts: List[str],
+    job_context: str,
+    intent: str,
+    constraints: Optional[Dict[str, object]] = None,
+    selection: Optional[Dict[str, int]] = None,
+) -> Dict[str, object]:
+    """Generate patch ops for cover letter edits."""
+
+    if not OPENAI_API_KEY:
+        return {
+            "ops": [],
+            "explanation": "LLM is not configured. No edits were generated.",
+            "warnings": ["OpenAI key missing."],
+        }
+
+    system_prompt = (
+        "You are a cover letter editor. You must ONLY use facts from the resume facts "
+        "and the provided job description. Do NOT invent metrics, company names, or experience. "
+        "Return ONLY valid JSON with keys: ops (array), explanation (string), warnings (array). "
+        "Ops MUST use this exact schema:\n"
+        "- replace: {\"type\":\"replace\",\"start\":int,\"end\":int,\"text\":string}\n"
+        "- insert: {\"type\":\"insert\",\"pos\":int,\"text\":string}\n"
+        "- delete: {\"type\":\"delete\",\"start\":int,\"end\":int}\n"
+        "Do NOT use alternative keys like at, offset, content. Character offsets must apply "
+        "to the provided content. If content is empty and intent is generate, insert a full draft "
+        "grounded in resume facts + job context. Keep output within 250-400 words unless constrained."
+    )
+    user_prompt = json.dumps(
+        {
+            "intent": intent,
+            "constraints": constraints or {},
+            "selection": selection or {},
+            "content": content,
+            "resume_facts": resume_facts,
+            "job_context": job_context[:6000],
+        }
+    )
+
+    try:
+        logger.info("LLM cover letter suggest start: model=%s intent=%s", OPENAI_MODEL, intent)
+        response = OpenAI(api_key=OPENAI_API_KEY).responses.create(
+            model=OPENAI_MODEL,
+            input=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        _log_usage(response, "cover_letter_suggest")
+        parsed = json.loads(response.output_text)
+        validated = CoverLetterPatchResult(**parsed)
+
+        return validated.model_dump()
+    except (json.JSONDecodeError, ValidationError, Exception):
+        logger.exception("LLM cover letter suggest failed.")
+        return {
+            "ops": [],
+            "explanation": "Unable to generate edits at this time.",
+            "warnings": ["LLM request failed."],
+        }
 
 
 def parse_resume_text(resume_text: str) -> Dict[str, object]:
