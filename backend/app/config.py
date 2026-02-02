@@ -1,6 +1,25 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional for prod
+    load_dotenv = None
+
+
+def _load_local_env() -> None:
+    if os.getenv("APP_ENV") or os.getenv("DATABASE_URL"):
+        return
+    if load_dotenv is None:
+        return
+    repo_root = Path(__file__).resolve().parents[2]
+    load_dotenv(repo_root / ".env", override=False)
+    load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
+
+
+_load_local_env()
 
 APP_ENV = os.getenv("APP_ENV", "production").lower()
 
