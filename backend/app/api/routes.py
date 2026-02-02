@@ -35,6 +35,8 @@ from app.models.schemas import (
     SelectedJobsResponse,
     SessionProfile,
     SubscriptionStatusResponse,
+    RefreshEnqueueResponse,
+    RefreshStatusResponse,
 )
 from app.services.apply_service import prepare_cover_letter
 from app.services.analysis_service import (
@@ -45,7 +47,7 @@ from app.services.analysis_service import (
 from app.services.greenhouse_service import retrieve_job_post, submit_application
 from app.services.matching_service import build_matches
 from app.services.jobs_service import list_jobs_by_ids
-from app.schedulers.ingestion_service import refresh_all_jobs
+from app.services.refresh_queue import enqueue_refresh, get_job
 from app.config import STRIPE_WEBHOOK_BYPASS
 from app.services.payment_service import (
     create_checkout_session,
@@ -671,9 +673,27 @@ def greenhouse_apply(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.post("/api/ingest/refresh")
-def ingest_refresh(db: Session = Depends(get_db)) -> Dict[str, int]:
-    """Trigger a manual ATS ingestion refresh (dev only)."""
+@router.post("/api/ingest/refresh", response_model=RefreshEnqueueResponse)
+def ingest_refresh(db: Session = Depends(get_db)) -> RefreshEnqueueResponse:
+    """Enqueue a manual ATS ingestion refresh (dev only)."""
 
-    totals = refresh_all_jobs(db)
-    return totals
+    job = enqueue_refresh(db, requested_by="api")
+    return RefreshEnqueueResponse(job_id=job.id, status=job.status)
+
+
+@router.get("/api/ingest/refresh/{job_id}", response_model=RefreshStatusResponse)
+def ingest_refresh_status(job_id: int, db: Session = Depends(get_db)) -> RefreshStatusResponse:
+    """Check status for a queued refresh job."""
+
+    job = get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Refresh job not found.")
+    return RefreshStatusResponse(
+        job_id=job.id,
+        status=job.status,
+        created_at=job.created_at,
+        started_at=job.started_at,
+        finished_at=job.finished_at,
+        totals=job.totals if isinstance(job.totals, dict) else None,
+        error=job.error,
+    )

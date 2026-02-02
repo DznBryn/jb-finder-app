@@ -1,4 +1,6 @@
 import "../styles/globals.css";
+import AppSidebar from "@/components/AppSidebar";
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import Providers from "./providers";
 
 export const metadata = {
@@ -16,7 +18,11 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen">
         <Providers>
-          <div className="mx-auto max-w-full px-6 py-10">{children}</div>
+          <AppSidebar />
+          <main className="mx-auto max-w-full space-y-10">
+            <SidebarTrigger />
+            {children}
+          </main>
         </Providers>
       </body>
     </html>

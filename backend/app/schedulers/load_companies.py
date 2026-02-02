@@ -26,12 +26,14 @@ def main() -> None:
             if record:
                 record.website = company.get("website") or record.website
                 record.greenhouse_token = company.get("greenhouse_token")
+                record.industry = company.get("industry") or record.industry
             else:
                 db.add(
                     Company(
                         name=company["name"],
                         website=company.get("website"),
                         greenhouse_token=company.get("greenhouse_token"),
+                        industry=company.get("industry"),
                     )
                 )
         db.commit()

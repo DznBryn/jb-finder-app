@@ -3,11 +3,31 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, ForeignKey
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, ForeignKey, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+
+
+# Industry choices for filtering
+INDUSTRY_CHOICES = [
+    "fintech",
+    "ai",
+    "developer-tools",
+    "productivity",
+    "marketplace",
+    "delivery",
+    "social-media",
+    "hr-tech",
+    "saas",
+    "security",
+    "healthcare",
+    "consumer",
+    "logistics",
+    "aerospace",
+    "agency",
+    "nonprofit",
+]
 
 
 class SessionRecord(Base):
@@ -16,6 +36,7 @@ class SessionRecord(Base):
     __tablename__ = "sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     resume_text: Mapped[str] = mapped_column(Text)
     resume_s3_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     extracted_skills: Mapped[list] = mapped_column(JSON, default=list)
@@ -45,6 +66,7 @@ class JobSelection(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(36), index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     job_id: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
@@ -58,6 +80,7 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String(128))
     website: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     greenhouse_token: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    industry: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
 
 class JobListing(Base):
@@ -79,6 +102,7 @@ class JobListing(Base):
     apply_url: Mapped[str] = mapped_column(String(512))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime)
+    industry: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
 
 class AnalysisUsage(Base):
@@ -88,6 +112,7 @@ class AnalysisUsage(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     month_key: Mapped[str] = mapped_column(String(16))
     count: Mapped[int] = mapped_column(Integer, default=0)
@@ -101,6 +126,7 @@ class DeepAnalysisRecord(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(36), index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     job_id: Mapped[str] = mapped_column(String(64), index=True)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime)
@@ -113,6 +139,7 @@ class CoverLetterDocument(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(36), index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     job_id: Mapped[str] = mapped_column(String(64), index=True)
     draft_content: Mapped[str] = mapped_column(Text, default="")
     current_version_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -130,6 +157,7 @@ class CoverLetterVersion(Base):
         Integer, ForeignKey("cover_letter_documents.id"), index=True
     )
     session_id: Mapped[str] = mapped_column(String(36), index=True)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     job_id: Mapped[str] = mapped_column(String(64), index=True)
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime)
@@ -137,3 +165,18 @@ class CoverLetterVersion(Base):
     intent: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     base_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     result_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+
+class RefreshJob(Base):
+    """Queue table for background refresh jobs."""
+
+    __tablename__ = "refresh_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    requested_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    totals: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

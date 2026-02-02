@@ -2,211 +2,253 @@
   {
     "name": "Stripe",
     "website": "https://stripe.com",
-    "greenhouse_token": "stripe"
-  },
-  {
-    "name": "Airbnb",
-    "website": "https://www.airbnb.com",
-    "greenhouse_token": "airbnb"
-  },
-  {
-    "name": "Asana",
-    "website": "https://asana.com",
-    "greenhouse_token": "asana"
-  },
-  {
-    "name": "Datadog",
-    "website": "https://www.datadoghq.com",
-    "greenhouse_token": "datadog"
+    "greenhouse_token": "stripe",
+    "industry": "fintech"
   },
   {
     "name": "Coinbase",
     "website": "https://www.coinbase.com",
-    "greenhouse_token": "coinbase"
-  },
-  {
-    "name": "Figma",
-    "website": "https://www.figma.com",
-    "greenhouse_token": "figma"
+    "greenhouse_token": "coinbase",
+    "industry": "fintech"
   },
   {
     "name": "Robinhood",
     "website": "https://robinhood.com",
-    "greenhouse_token": "robinhood"
-  },
-  {
-    "name": "Instacart",
-    "website": "https://www.instacart.com",
-    "greenhouse_token": "instacart"
-  },
-  {
-    "name": "Lyft",
-    "website": "https://www.lyft.com",
-    "greenhouse_token": "lyft"
-  },
-  {
-    "name": "Twilio",
-    "website": "https://www.twilio.com",
-    "greenhouse_token": "twilio"
-  },
-  {
-    "name": "Okta",
-    "website": "https://www.okta.com",
-    "greenhouse_token": "okta"
-  },
-  {
-    "name": "HubSpot",
-    "website": "https://www.hubspot.com",
-    "greenhouse_token": "hubspot"
-  },
-  {
-    "name": "Reddit",
-    "website": "https://www.reddit.com",
-    "greenhouse_token": "reddit"
-  },
-  {
-    "name": "Pinterest",
-    "website": "https://www.pinterest.com",
-    "greenhouse_token": "pinterest"
-  },
-  {
-    "name": "Peloton",
-    "website": "https://www.onepeloton.com",
-    "greenhouse_token": "peloton"
-  },
-  {
-    "name": "Dropbox",
-    "website": "https://www.dropbox.com",
-    "greenhouse_token": "dropbox"
-  },
-  {
-    "name": "GitLab",
-    "website": "https://about.gitlab.com",
-    "greenhouse_token": "gitlab"
-  },
-  {
-    "name": "Cloudflare",
-    "website": "https://www.cloudflare.com",
-    "greenhouse_token": "cloudflare"
-  },
-  {
-    "name": "Intercom",
-    "website": "https://www.intercom.com",
-    "greenhouse_token": "intercom"
-  },
-  {
-    "name": "Gusto",
-    "website": "https://gusto.com",
-    "greenhouse_token": "gusto"
+    "greenhouse_token": "robinhood",
+    "industry": "fintech"
   },
   {
     "name": "Brex",
     "website": "https://www.brex.com",
-    "greenhouse_token": "brex"
+    "greenhouse_token": "brex",
+    "industry": "fintech"
   },
   {
     "name": "Chime",
     "website": "https://www.chime.com",
-    "greenhouse_token": "chime"
-  },
-  {
-    "name": "Flexport",
-    "website": "https://www.flexport.com",
-    "greenhouse_token": "flexport"
-  },
-  {
-    "name": "Oscar Health",
-    "website": "https://www.hioscar.com",
-    "greenhouse_token": "oscar"
-  },
-  {
-    "name": "Handshake",
-    "website": "https://joinhandshake.com",
-    "greenhouse_token": "handshake"
-  },
-  {
-    "name": "Indeed",
-    "website": "https://www.indeed.com",
-    "greenhouse_token": "indeed"
-  },
-  {
-    "name": "Fleetio",
-    "website": "https://www.fleetio.com",
-    "greenhouse_token": "fleetio"
+    "greenhouse_token": "chime",
+    "industry": "fintech"
   },
   {
     "name": "Ripple",
     "website": "https://ripple.com",
-    "greenhouse_token": "ripple"
-  },
-  {
-    "name": "Media.Monks",
-    "website": "https://www.monks.com",
-    "greenhouse_token": "monks"
-  },
-  {
-    "name": "The Good Food Institute",
-    "website": "https://gfi.org",
-    "greenhouse_token": "thegoodfoodinstitute80"
-  },
-  {
-    "name": "SpaceX",
-    "website": "https://www.spacex.com",
-    "greenhouse_token": "spacex"
-  },
-  {
-    "name": "Practice Better",
-    "website": "https://practicebetter.io",
-    "greenhouse_token": "practicebetter"
-  },
-  {
-    "name": "Transcarent",
-    "website": "https://www.transcarent.com",
-    "greenhouse_token": "transcarent"
+    "greenhouse_token": "ripple",
+    "industry": "fintech"
   },
   {
     "name": "Array",
     "website": "https://array.com",
-    "greenhouse_token": "array"
+    "greenhouse_token": "array",
+    "industry": "fintech"
   },
   {
     "name": "xAI",
     "website": "https://x.ai",
-    "greenhouse_token": "xai"
+    "greenhouse_token": "xai",
+    "industry": "ai"
   },
   {
-    "name": "The Pok\u00e9mon Company International",
-    "website": "https://www.pokemon.com",
-    "greenhouse_token": "pokemoncareers"
+    "name": "Datadog",
+    "website": "https://www.datadoghq.com",
+    "greenhouse_token": "datadog",
+    "industry": "developer-tools"
+  },
+  {
+    "name": "Twilio",
+    "website": "https://www.twilio.com",
+    "greenhouse_token": "twilio",
+    "industry": "developer-tools"
+  },
+  {
+    "name": "GitLab",
+    "website": "https://about.gitlab.com",
+    "greenhouse_token": "gitlab",
+    "industry": "developer-tools"
+  },
+  {
+    "name": "Cloudflare",
+    "website": "https://www.cloudflare.com",
+    "greenhouse_token": "cloudflare",
+    "industry": "developer-tools"
+  },
+  {
+    "name": "Asana",
+    "website": "https://asana.com",
+    "greenhouse_token": "asana",
+    "industry": "productivity"
+  },
+  {
+    "name": "Figma",
+    "website": "https://www.figma.com",
+    "greenhouse_token": "figma",
+    "industry": "productivity"
+  },
+  {
+    "name": "Dropbox",
+    "website": "https://www.dropbox.com",
+    "greenhouse_token": "dropbox",
+    "industry": "productivity"
+  },
+  {
+    "name": "Airbnb",
+    "website": "https://www.airbnb.com",
+    "greenhouse_token": "airbnb",
+    "industry": "marketplace"
   },
   {
     "name": "Thumbtack",
     "website": "https://www.thumbtack.com",
-    "greenhouse_token": "thumbtack"
+    "greenhouse_token": "thumbtack",
+    "industry": "marketplace"
   },
   {
     "name": "Opendoor",
     "website": "https://www.opendoor.com",
-    "greenhouse_token": "opendoor"
+    "greenhouse_token": "opendoor",
+    "industry": "marketplace"
   },
   {
-    "name": "DEPT\u00ae",
-    "website": "https://www.deptagency.com",
-    "greenhouse_token": "dept"
+    "name": "Instacart",
+    "website": "https://www.instacart.com",
+    "greenhouse_token": "instacart",
+    "industry": "delivery"
+  },
+  {
+    "name": "Lyft",
+    "website": "https://www.lyft.com",
+    "greenhouse_token": "lyft",
+    "industry": "delivery"
+  },
+  {
+    "name": "Reddit",
+    "website": "https://www.reddit.com",
+    "greenhouse_token": "reddit",
+    "industry": "social-media"
+  },
+  {
+    "name": "Pinterest",
+    "website": "https://www.pinterest.com",
+    "greenhouse_token": "pinterest",
+    "industry": "social-media"
+  },
+  {
+    "name": "Gusto",
+    "website": "https://gusto.com",
+    "greenhouse_token": "gusto",
+    "industry": "hr-tech"
+  },
+  {
+    "name": "Handshake",
+    "website": "https://joinhandshake.com",
+    "greenhouse_token": "handshake",
+    "industry": "hr-tech"
+  },
+  {
+    "name": "Indeed",
+    "website": "https://www.indeed.com",
+    "greenhouse_token": "indeed",
+    "industry": "hr-tech"
+  },
+  {
+    "name": "Intercom",
+    "website": "https://www.intercom.com",
+    "greenhouse_token": "intercom",
+    "industry": "saas"
+  },
+  {
+    "name": "HubSpot",
+    "website": "https://www.hubspot.com",
+    "greenhouse_token": "hubspot",
+    "industry": "saas"
+  },
+  {
+    "name": "Okta",
+    "website": "https://www.okta.com",
+    "greenhouse_token": "okta",
+    "industry": "security"
+  },
+  {
+    "name": "Oscar Health",
+    "website": "https://www.hioscar.com",
+    "greenhouse_token": "oscar",
+    "industry": "healthcare"
+  },
+  {
+    "name": "Transcarent",
+    "website": "https://www.transcarent.com",
+    "greenhouse_token": "transcarent",
+    "industry": "healthcare"
   },
   {
     "name": "Assembly Health",
     "website": "https://assemblyhealth.com",
-    "greenhouse_token": "assemblyhealth"
+    "greenhouse_token": "assemblyhealth",
+    "industry": "healthcare"
+  },
+  {
+    "name": "Practice Better",
+    "website": "https://practicebetter.io",
+    "greenhouse_token": "practicebetter",
+    "industry": "healthcare"
+  },
+  {
+    "name": "Peloton",
+    "website": "https://www.onepeloton.com",
+    "greenhouse_token": "peloton",
+    "industry": "consumer"
+  },
+  {
+    "name": "The Pok\u00e9mon Company International",
+    "website": "https://www.pokemon.com",
+    "greenhouse_token": "pokemoncareers",
+    "industry": "consumer"
+  },
+  {
+    "name": "Flexport",
+    "website": "https://www.flexport.com",
+    "greenhouse_token": "flexport",
+    "industry": "logistics"
+  },
+  {
+    "name": "Fleetio",
+    "website": "https://www.fleetio.com",
+    "greenhouse_token": "fleetio",
+    "industry": "logistics"
+  },
+  {
+    "name": "SpaceX",
+    "website": "https://www.spacex.com",
+    "greenhouse_token": "spacex",
+    "industry": "aerospace"
+  },
+  {
+    "name": "Media.Monks",
+    "website": "https://www.monks.com",
+    "greenhouse_token": "monks",
+    "industry": "agency"
+  },
+  {
+    "name": "DEPT\u00ae",
+    "website": "https://www.deptagency.com",
+    "greenhouse_token": "dept",
+    "industry": "agency"
   },
   {
     "name": "Innovecs",
     "website": "https://innovecs.com",
-    "greenhouse_token": "innovecs"
+    "greenhouse_token": "innovecs",
+    "industry": "agency"
+  },
+  {
+    "name": "The Good Food Institute",
+    "website": "https://gfi.org",
+    "greenhouse_token": "thegoodfoodinstitute80",
+    "industry": "nonprofit"
   },
   {
     "name": "Open Energy Transition",
     "website": "https://openenergytransition.org",
-    "greenhouse_token": "openenergytransition"
+    "greenhouse_token": "openenergytransition",
+    "industry": "nonprofit"
   }
 ]

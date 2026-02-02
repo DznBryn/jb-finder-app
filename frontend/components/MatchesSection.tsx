@@ -18,10 +18,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import MatchesSkeleton from "./skeletons/MatchesSkeleton";
+
 import { useSession } from "../app/session-context";
 import CoverLetterEditor from "./CoverLetterEditor";
 import type { MatchesSectionProps } from "../type";
+import { INDUSTRY_OPTIONS } from "../type";
 
 function getLocationBadge(label: string) {
   const normalized = label.toLowerCase();
@@ -71,10 +72,12 @@ export default function MatchesSection({
   filterLocation,
   filterWorkMode,
   filterPayRange,
+  filterIndustry,
   onFilterTitleTermsChange,
   onFilterLocationChange,
   onFilterWorkModeChange,
   onFilterPayRangeChange,
+  onFilterIndustryChange,
   onApplyFilters,
   onFetchMatches,
   selectedJobs,
@@ -301,6 +304,20 @@ export default function MatchesSection({
                   <option value="without">Only without pay range</option>
                 </select>
               </div>
+              <div>
+                <label className="text-xs text-slate-400">Industry</label>
+                <select
+                  className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+                  value={filterIndustry}
+                  onChange={(event) => onFilterIndustryChange(event.target.value)}
+                >
+                  {INDUSTRY_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -491,7 +508,7 @@ export default function MatchesSection({
                                 Tailor resume for ATS
                               </button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent variant="fullscreen">
                               <DialogHeader>
                                 <DialogTitle>Tailor resume for ATS</DialogTitle>
                                 <DialogDescription>
@@ -513,7 +530,7 @@ export default function MatchesSection({
                                 Edit cover letter
                               </button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent variant="fullscreen">
                               <DialogHeader>
                                 <DialogTitle>Cover letter editor</DialogTitle>
                                 <DialogDescription>

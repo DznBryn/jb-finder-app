@@ -150,6 +150,25 @@ class SubscriptionStatusResponse(BaseModel):
     status: str
 
 
+class RefreshEnqueueResponse(BaseModel):
+    """Response when a refresh job is enqueued."""
+
+    job_id: int
+    status: str
+
+
+class RefreshStatusResponse(BaseModel):
+    """Status for a refresh job."""
+
+    job_id: int
+    status: str
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    totals: Optional[Dict[str, int]] = None
+    error: Optional[str] = None
+
+
 class AnalyzeRequest(BaseModel):
     """Payload to analyze selected jobs against a session."""
 
