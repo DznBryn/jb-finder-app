@@ -2,11 +2,19 @@ from __future__ import annotations
 
 import os
 
+APP_ENV = os.getenv("APP_ENV", "production").lower()
+
 # Database
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://postgres:ToO6ntRSucfAOQrQ@db.idsuzaqwmsvgieahyoeb.supabase.co:5432/postgres",
-)
+def _database_url() -> str:
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url:
+        return url
+    if APP_ENV == "development":
+        return "postgresql+psycopg2://jb_finder:jb_finder_password@localhost:5433/jb_finder"
+    raise RuntimeError("DATABASE_URL is required when APP_ENV is not development.")
+
+
+DATABASE_URL = _database_url()
 
 # Storage
 S3_BUCKET = os.getenv("S3_BUCKET", "")
