@@ -3,10 +3,17 @@ from __future__ import annotations
 import os
 
 # Database
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:ToO6ntRSucfAOQrQ@db.idsuzaqwmsvgieahyoeb.supabase.co:5432/postgres",
+)
 
 # Storage
 S3_BUCKET = os.getenv("S3_BUCKET", "")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+# Server-side only. Use Supabase `service_role` key (never expose to frontend).
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "resumes")
 
 # LLM
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

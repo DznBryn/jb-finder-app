@@ -18,7 +18,7 @@ function FeatureCard({
 
 export default function HomePage() {
   return (
-    <main className="mx-auto max-w-full space-y-10">
+  
       <div className="space-y-6 max-w-7xl mx-auto">
         <section className="grid gap-4 md:grid-cols-3">
           <FeatureCard
@@ -58,6 +58,6 @@ export default function HomePage() {
           </div>
         </section>
       </div>
-    </main>
+
   );
 }

@@ -1,4 +1,9 @@
-import JobDetails from "@/components/JobDetails";
+import dynamic from "next/dynamic";
+import JobDetailsSkeleton from "@/components/skeletons/JobDetailsSkeleton";
+
+const JobDetails = dynamic(() => import("@/components/JobDetails"), {
+  loading: () => <JobDetailsSkeleton />,
+});
 
 export default async function JobDetailsPage({
   params,

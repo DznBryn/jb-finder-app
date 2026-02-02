@@ -2,6 +2,29 @@ import type { Dispatch, SetStateAction, FormEvent } from "react";
 import type { ButtonProps } from "@/components/ui/button";
 import type React from "react";
 
+// Industry choices for filtering
+export const INDUSTRY_OPTIONS = [
+  { value: "all", label: "All Industries" },
+  { value: "fintech", label: "Fintech" },
+  { value: "ai", label: "AI / Machine Learning" },
+  { value: "developer-tools", label: "Developer Tools" },
+  { value: "productivity", label: "Productivity" },
+  { value: "marketplace", label: "Marketplace" },
+  { value: "delivery", label: "Delivery / Logistics" },
+  { value: "social-media", label: "Social Media" },
+  { value: "hr-tech", label: "HR Tech" },
+  { value: "saas", label: "SaaS" },
+  { value: "security", label: "Security" },
+  { value: "healthcare", label: "Healthcare" },
+  { value: "consumer", label: "Consumer Products" },
+  { value: "logistics", label: "Logistics" },
+  { value: "aerospace", label: "Aerospace" },
+  { value: "agency", label: "Agency / Services" },
+  { value: "nonprofit", label: "Nonprofit" },
+] as const;
+
+export type IndustryValue = typeof INDUSTRY_OPTIONS[number]["value"];
+
 export type SessionProfile = {
   session_id: string;
   resume_s3_key: string | null;
@@ -148,6 +171,7 @@ export type MatchResult = {
   company: string;
   title: string;
   location: string;
+  industry?: string | null;
   pay_ranges: Array<{
     min_cents?: number;
     max_cents?: number;
@@ -178,6 +202,7 @@ export type MatchFilters = {
   location_pref: string | null;
   work_mode: string | null;
   pay_range: string | null;
+  industry: string | null;
 };
 
 export type UploadResumeProps = {
@@ -200,10 +225,12 @@ export type MatchesSectionProps = {
   filterLocation: string;
   filterWorkMode: string;
   filterPayRange: string;
+  filterIndustry: string;
   onFilterTitleTermsChange: (value: string) => void;
   onFilterLocationChange: (value: string) => void;
   onFilterWorkModeChange: (value: string) => void;
   onFilterPayRangeChange: (value: string) => void;
+  onFilterIndustryChange: (value: string) => void;
   onApplyFilters: () => Promise<void>;
   onFetchMatches: (page: number, filters: MatchFilters | null) => Promise<void>;
   selectedJobs: string[];
@@ -239,6 +266,7 @@ export type SelectedJob = {
   location: string;
   apply_url: string;
   is_active?: boolean;
+  industry?: string | null;
 };
 
 export type GreenhouseFieldValue = { value: number | string; label: string };

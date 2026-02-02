@@ -185,7 +185,7 @@ cd jb-finder-app/backend
 
 # Create .env file
 cat > .env << EOF
-DATABASE_URL=sqlite:////app/dev.db
+DATABASE_URL=postgresql+psycopg2://jb_finder:jb_finder_password@postgres:5432/jb_finder
 S3_BUCKET=jb-finder-uploads-xxxxx
 AWS_REGION=us-east-1
 OPENAI_API_KEY=sk-xxxxx
@@ -228,7 +228,7 @@ docker run -d -p 3000:3000 jb-finder-frontend
 | `S3_BUCKET` | Backend | Your S3 bucket name |
 | `AWS_REGION` | Backend | e.g., `us-east-1` |
 | `OPENAI_API_KEY` | Backend | Your OpenAI key |
-| `DATABASE_URL` | Backend | `sqlite:////app/dev.db` |
+| `DATABASE_URL` | Backend | `postgresql+psycopg2://jb_finder:jb_finder_password@postgres:5432/jb_finder` |
 | `NEXT_PUBLIC_API_BASE` | Frontend (build-time) | `http://<backend-ip>:8000` |
 
 ## 8. Verification Checklist

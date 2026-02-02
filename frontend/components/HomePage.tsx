@@ -2,9 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import { signIn, useSession as useAuthSession } from "next-auth/react";
 import { useSession } from "../app/session-context";
 import MatchesSkeleton from "./skeletons/MatchesSkeleton";
 import UploadResume from "./UploadResume";
+import SignupPrompt from "./SignupPrompt";
 import type {
   AnalyzeResult,
   AnalyzedJobDetail,
@@ -21,6 +23,7 @@ const MatchesSection = dynamic(() => import("./MatchesSection"), {
 
 export default function HomepageClient() {
   const [uploading, setUploading] = useState(false);
+  const { status: authStatus } = useAuthSession();
   const {
     sessionProfile,
     setSessionProfile,
@@ -46,6 +49,7 @@ export default function HomepageClient() {
   const [filterLocation, setFilterLocation] = useState("");
   const [filterWorkMode, setFilterWorkMode] = useState("either");
   const [filterPayRange, setFilterPayRange] = useState("any");
+  const [filterIndustry, setFilterIndustry] = useState("all");
   const [activeFilters, setActiveFilters] = useState<MatchFilters | null>(null);
   const [lockedTitleTerms, setLockedTitleTerms] = useState<string[]>([]);
   const [hasLoadedLockedTerms, setHasLoadedLockedTerms] = useState(false);
@@ -63,6 +67,7 @@ export default function HomepageClient() {
     Record<string, ApplyResult | null>
   >({});
   const [applyTone, setApplyTone] = useState("concise");
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
   const matchesPageSize = 25;
@@ -99,7 +104,6 @@ export default function HomepageClient() {
   };
 
   const handleUpload = async (event: React.FormEvent<HTMLFormElement>) => {
-    // Submit the resume file to the backend and store the parsed output.
     event.preventDefault();
     setUploading(true);
     setErrorMessage(null);
@@ -111,6 +115,7 @@ export default function HomepageClient() {
     setFilterLocation("");
     setFilterWorkMode("either");
     setFilterPayRange("any");
+    setFilterIndustry("all");
     setLockedTitleTerms([]);
     setHasLoadedLockedTerms(false);
     setSelectedJobs([]);
@@ -177,6 +182,7 @@ export default function HomepageClient() {
               location_pref: null,
               work_mode: null,
               pay_range: null,
+              industry: null,
             }
           : null,
         data
@@ -189,6 +195,36 @@ export default function HomepageClient() {
       setUploading(false);
     }
   };
+
+  useEffect(() => {
+    if (!sessionProfile?.session_id) return;
+    if (authStatus !== "unauthenticated") return;
+    if (!hasLoadedMatches || matches.length === 0) return;
+    if (typeof window === "undefined") return;
+    const promptKey = `signup_prompted_${sessionProfile.session_id}`;
+    if (window.localStorage.getItem(promptKey)) return;
+    window.localStorage.setItem(promptKey, "1");
+    setShowSignupPrompt(true);
+  }, [authStatus, hasLoadedMatches, matches.length, sessionProfile?.session_id]);
+
+  useEffect(() => {
+    if (authStatus !== "authenticated") return;
+    if (!sessionProfile?.session_id) return;
+    if (typeof window === "undefined") return;
+    const convertKey = `session_converted_${sessionProfile.session_id}`;
+    if (window.localStorage.getItem(convertKey)) return;
+    fetch("/api/auth/convert-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionProfile.session_id }),
+    })
+      .then((response) => {
+        if (response.ok) {
+          window.localStorage.setItem(convertKey, "1");
+        }
+      })
+      .catch(() => {});
+  }, [authStatus, sessionProfile?.session_id]);
 
   useEffect(() => {
     if (!sessionProfile || hasLoadedLockedTerms) return;
@@ -221,7 +257,6 @@ export default function HomepageClient() {
     filters: MatchFilters | null,
     sessionOverride?: SessionProfile
   ) => {
-    // Fetch ranked matches for the current session.
     const activeSession = sessionOverride ?? sessionProfile;
     if (!activeSession) return;
 
@@ -238,6 +273,7 @@ export default function HomepageClient() {
               location_pref: null,
               work_mode: null,
               pay_range: null,
+              industry: null,
             }
           : null);
       const response = await fetch(`${apiBase}/api/matches`, {
@@ -299,6 +335,7 @@ export default function HomepageClient() {
       location_pref: filterLocation || null,
       work_mode: filterWorkMode || null,
       pay_range: filterPayRange || null,
+      industry: filterIndustry === "all" ? null : filterIndustry,
     };
     setLockedTitleTerms(titleTerms);
     if (sessionProfile?.session_id) {
@@ -313,7 +350,6 @@ export default function HomepageClient() {
   };
 
   const toggleJobSelection = (jobId: string) => {
-    // Track which jobs the user wants to analyze/apply.
     setSelectedJobs((prev) => {
       if (prev.includes(jobId)) {
         return prev.filter((id) => id !== jobId);
@@ -323,7 +359,6 @@ export default function HomepageClient() {
   };
 
   const handleSaveSelections = async () => {
-    // Persist selections for the current session.
     if (!sessionProfile || selectedJobs.length === 0) return;
 
     setSelectionError(null);
@@ -471,7 +506,6 @@ export default function HomepageClient() {
   };
 
   const handlePrepareApply = async (jobId: string) => {
-    // Request cover letter and apply URL.
     if (!sessionProfile) return;
 
     const response = await fetch(`${apiBase}/api/apply/prepare`, {
@@ -505,10 +539,12 @@ export default function HomepageClient() {
     filterLocation: filterLocation,
     filterWorkMode: filterWorkMode,
     filterPayRange: filterPayRange,
+    filterIndustry: filterIndustry,
     onFilterTitleTermsChange: setFilterTitleTerms,
     onFilterLocationChange: setFilterLocation,
     onFilterWorkModeChange: setFilterWorkMode,
     onFilterPayRangeChange: setFilterPayRange,
+    onFilterIndustryChange: setFilterIndustry,
     onApplyFilters: handleApplyFilters,
     onFetchMatches: (page: number, filters: MatchFilters | null) =>
       fetchMatches(page, filters),
@@ -533,8 +569,15 @@ export default function HomepageClient() {
     onApplyToneChange: setApplyTone,
     onPrepareApply: handlePrepareApply,
   };
+
   return (
     <>
+      <SignupPrompt
+        open={showSignupPrompt}
+        onOpenChange={setShowSignupPrompt}
+        onGoogle={() => signIn("google", { redirectTo: "/" })}
+        onLinkedIn={() => signIn("linkedin", { redirectTo: "/" })}
+      />
       <UploadResume
         uploading={uploading}
         errorMessage={errorMessage}
@@ -545,4 +588,3 @@ export default function HomepageClient() {
     </>
   );
 }
-

@@ -4,6 +4,8 @@
 *.local
 .idea/
 .vscode/
+.npm-cache/
+.cache/
 
 __pycache__/
 *.py[cod]
@@ -20,13 +22,13 @@ node_modules/
 dist/
 build/
 out/
+frontend/tsconfig.tsbuildinfo
 
 *.log
 coverage/
-*.sqlite
-*.sqlite3
 backend/dev.db
 backend/app/storage/
+storage/
 
 # Personal learning notes
 **/LEARNINGS.md
@@ -34,3 +36,4 @@ backend/app/storage/
 # Internal research
 Job_App_Research.md
 AWS-learnings.md
+

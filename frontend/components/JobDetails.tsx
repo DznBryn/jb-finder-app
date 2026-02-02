@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "../app/session-context";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,14 +14,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import ResumeReview from "./ResumeReview";
-import CoverLetterEditor from "./CoverLetterEditor";
+import ResumeReviewSkeleton from "./skeletons/ResumeReviewSkeleton";
+import CoverLetterEditorSkeleton from "./skeletons/CoverLetterEditorSkeleton";
 import type {
   AnalyzeResult,
   AnalyzedJobDetail,
   DeepAnalyzeResponse,
   GreenhouseJob,
 } from "../type";
+
+const ResumeReview = dynamic(() => import("./ResumeReview"), {
+  loading: () => <ResumeReviewSkeleton />,
+});
+
+const CoverLetterEditor = dynamic(() => import("./CoverLetterEditor"), {
+  loading: () => <CoverLetterEditorSkeleton />,
+});
 
 type JobDetailsProps = {
   jobId: string;
@@ -307,88 +316,61 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     return decodeHtml(job.content);
   }, [job?.content]);
 
-  console.log('analysisResult', job);
-
   return (
     <div className="space-y-6 flex flex-col md:flex-row gap-6 md:px-12">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-8/12">
-        <div className="w-full h-auto ">
+        <div className="w-full h-auto">
           {loadingJob ? (
             <div className="space-y-3 animate-pulse">
-              <div className="h-5 w-48 rounded bg-slate-800" />
-              <div className="h-4 w-32 rounded bg-slate-800" />
-              <div className="h-3 w-64 rounded bg-slate-800" />
+              <div className="h-6 w-3/4 rounded bg-slate-800" />
+              <div className="h-4 w-1/2 rounded bg-slate-800" />
+              <div className="mt-4 flex gap-2">
+                <div className="h-5 w-20 rounded-full bg-slate-800" />
+                <div className="h-5 w-24 rounded-full bg-slate-800" />
+              </div>
             </div>
           ) : jobError ? (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
               {jobError}
             </div>
           ) : job ? (
-            <div className="w-full h-auto flex flex-col gap-4 2xl:flex-row 2xl:justify-between 2xl:items-start">
-              <div className="space-y-2 order-1 2xl:order-0">
-                <p className="text-xl font-semibold text-white">{job.title}</p>
-                <p className="text-sm text-slate-400">{job.location?.name}</p>
-                {job.absolute_url ? (
-                  <a
-                    className="text-xs font-semibold text-emerald-300"
-                    href={job.absolute_url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open official job post →
-                  </a>
+            <div className="space-y-4">
+              <div>
+                <h1 className="text-2xl font-bold text-white">{job.title}</h1>
+                {job.location?.name ? (
+                  <p className="text-sm text-slate-400">{job.location.name}</p>
                 ) : null}
               </div>
-              <ButtonGroup className="flex flex-wrap items-center order-0 2xl:order-1">
-                <Button
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  variant="outline"
-                  type="button"
-                  onClick={handleAnalyze}
-                  disabled={!canAnalyze}
+              {job.absolute_url ? (
+                <a
+                  className="inline-flex items-center gap-1 text-sm font-medium text-emerald-300 hover:underline"
+                  href={job.absolute_url}
+                  target="_blank"
+                  rel="noreferrer"
                 >
-                  {analyzing ? "Analyzing..." : "Analyze this job"}
-                </Button>
-                <Button
-                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  variant="outline"
-                  type="button"
-                  onClick={handleDeepAnalyze}
-                  disabled={!canDeepAnalyze}
-                >
-                  {deepAnalysis
-                    ? "Deep analysis complete"
-                    : deepAnalyzing
-                      ? "Deep analyzing..."
-                      : "Deep analysis"}
-                </Button>
-              </ButtonGroup>
+                  View on company site →
+                </a>
+              ) : null}
             </div>
           ) : null}
         </div>
 
         <div className="w-full h-auto">
           <h2 className="text-lg font-semibold text-white">Job description</h2>
-          {loadingJob ? (
-            <div className="mt-3 space-y-2 animate-pulse">
-              <div className="h-3 w-full rounded bg-slate-800" />
-              <div className="h-3 w-5/6 rounded bg-slate-800" />
-              <div className="h-3 w-4/6 rounded bg-slate-800" />
-            </div>
-          ) : decodedContent ? (
+          {decodedContent ? (
             <div
-              className="prose prose-invert mt-3 max-w-none space-y-3 text-sm text-slate-200:important"
+              className="prose prose-invert prose-sm mt-3 max-w-none text-slate-300"
               dangerouslySetInnerHTML={{ __html: decodedContent }}
             />
           ) : (
-            <p className="mt-3 text-sm text-slate-400">
+            <p className="mt-3 text-sm text-slate-500">
               No job description available.
             </p>
           )}
         </div>
 
         {job?.questions?.length ? (
-          <div className="w-">
+          <div className="w-full">
             <h2 className="text-lg font-semibold text-white">
               Application questions
             </h2>
@@ -407,14 +389,13 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
       <div className="h-fit rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-4/12">
         <div className="w-full h-auto">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="">
+            <div>
               <h2 className="text-lg font-semibold text-white">Match analysis</h2>
               <p className="text-xs text-slate-400">
                 {analysisResult
                   ? "Deep analysis available for this job."
                   : "Run analysis to grade this job against your profile."}
               </p>
-
             </div>
             <ButtonGroup className="flex flex-wrap">
               <Dialog>
@@ -427,7 +408,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
                     Resume review
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent variant="fullscreen">
                   <DialogHeader>
                     <DialogDescription>
                       Review your resume against this role with targeted improvements.
@@ -451,7 +432,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
                     Cover letter
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent variant="fullscreen">
                   <DialogHeader>
                     <DialogTitle>Cover letter editor</DialogTitle>
                     <DialogDescription>
@@ -468,7 +449,6 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
               </Dialog>
             </ButtonGroup>
           </div>
-
 
           {analysisError ? (
             <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
@@ -542,12 +522,11 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
               </div>
             </div>
           ) : null}
-
         </div>
 
         {deepAnalyzing && !deepAnalysis?.learning_resources?.length ? (
           <div className="w-full h-auto p-4">
-            <div className="flex items-center gap-2 text-xs text-slate-400  ">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
               <Spinner className="size-4 text-slate-600" />
               <span className="text-slate-600">Deep analyzing… gathering learning resources.</span>
             </div>
@@ -618,7 +597,6 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
             </div>
           </div>
         ) : null}
-
       </div>
     </div>
   );

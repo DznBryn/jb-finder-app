@@ -2,21 +2,39 @@
 name: job-finder-mvp-plan
 overview: Living architecture + implementation plan for the Job Finder MVP, updated to reflect current build progress.
 todos:
-  - id: define-api-contracts
-    content: Define request/response schemas for MVP endpoints.
+  - id: core-api-contracts
+    content: Core API contracts implemented (upload, matches, analyze, deep analyze, greenhouse apply).
     status: completed
-  - id: diagram-architecture
-    content: Draft a simple system diagram for data flow.
+  - id: cover-letter-editor-v1
+    content: AI Cover Letter Editor v1 (Lexical + ops/diff + versions + persistence).
     status: completed
-  - id: spec-matching
-    content: Specify scoring weights and tier thresholds.
+  - id: postgres-local-dev
+    content: Postgres local dev via docker-compose (instead of SQLite).
     status: completed
-  - id: spec-data-model
-    content: Finalize DB schema and session TTLs.
+  - id: alembic-migrations
+    content: Alembic added for schema migrations (+ initial migrations).
     status: completed
-  - id: spec-monetization
-    content: Define pricing tiers and Stripe integration.
+  - id: job-refresh-active-flag
+    content: Track job activity with is_active; hide inactive roles from matches.
     status: completed
+  - id: rate-limit-llm
+    content: Rate limit expensive LLM endpoints (SlowAPI).
+    status: completed
+  - id: monetize-credits-spec
+    content: Define pay-for-what-you-use credit strategy + subscriber top-up bonus rules.
+    status: completed
+  - id: credits-ledger-implementation
+    content: Implement subscription_credits + one_time_credits buckets and server-side deduction/reserve caps.
+    status: pending
+  - id: stripe-topups-and-bonus
+    content: Implement Stripe top-ups with subscriber bonus applied at purchase time.
+    status: pending
+  - id: auth-session-to-user
+    content: Add auth and migrate session_id -> user_id with credit + data transfer.
+    status: pending
+  - id: deterministic-matching
+    content: Reintroduce job skill extraction + deterministic scoring for matches.
+    status: pending
 ---
 
 # Job Finder MVP Architecture Plan
@@ -51,30 +69,40 @@ Data model should include a `user_type` field from the start to support future e
 
 ## Monetization (MVP) — Token-Based "Finder Credits"
 
-### Core Concept
+### Core Concept: Pay-for-what-you-use
 
 Instead of exposing raw LLM tokens (confusing to users), sell **"Finder Credits"**:
-- **1 Credit ≈ 1,000 LLM tokens** (~750 words)
-- Users buy a monthly allowance or top-up packs
-- Show users the "credit cost" before they run expensive actions (Deep Analysis, Resume Tailoring)
+- **1 Credit ≈ 1,000 LLM tokens** (approx. 750 words).
+- Users are charged based on the **actual** token usage of their request.
+- **Why?** Fairer for users (short resume = cheaper) and safer for us (long resume = covered costs).
 
-### Subscription Tiers
+### Subscription Tiers (Monthly Allowance)
 
-| Plan | Target | Price | Allowance | Key Features |
-|------|--------|-------|-----------|--------------|
-| **Job Seeker** (Basic) | Casual hunters (<5 roles/week) | $9.99/mo | 500 Credits (500k tokens) | Resume Parsing (free), Match Analysis (~5 cr/job), Deep Analysis (~15 cr/job), Basic Resume Tailoring (~20 cr/job) |
-| **Power Applier** (Pro) | Active seekers, many roles | $24.99/mo | 2,500 Credits (2.5M tokens) | Everything in Basic + Priority Processing, Advanced Resume Tailoring, Cover Letter Generator (~30 cr/doc) |
-| **On-Demand** (Pay-as-you-go) | One-time need | $5 one-time | 200 Credits | For users who need one deep analysis + tailored resume immediately |
+| Plan | Price | Monthly Allowance | Rollover? |
+| :--- | :--- | :--- | :--- |
+| **Job Seeker** (Basic) | **$9.99/mo** | **500 Credits** | No |
+| **Power Applier** (Pro) | **$24.99/mo** | **2,500 Credits** | No |
 
-### Feature Credit Costs
+### Top-Up Packs (One-Time)
+*Encourage subscriptions by offering better rates to members.*
 
-| Feature | Estimated Credits |
-|---------|-------------------|
-| Resume Parsing | Free (low cost) |
-| Match Analysis (Grade A-D) | ~5 credits/job |
-| Deep Analysis (Learning Resources) | ~15 credits/job |
-| Basic Resume Tailoring | ~20 credits/job |
-| Cover Letter Generation | ~30 credits/doc |
+| Pack Price | Non-Subscriber | Subscriber (Bonus) |
+| :--- | :--- | :--- |
+| **$4.99** | **200 Credits** | **300 Credits** (+50%) |
+| **$19.99** | **1,000 Credits** | **1,500 Credits** (+50%) |
+
+**Credit policy:** One-time purchase credits never expire and do not reset each billing cycle. Subscription credits expire at the end of the billing period and are not converted on cancellation.
+
+### Feature Cost Estimates (For User UI)
+*Actual cost calculated post-generation.*
+
+| Feature | Est. Credits | Notes |
+| :--- | :--- | :--- |
+| **Resume Parsing** | **Free** | Essential onboarding. |
+| **Match Analysis** | **~5 Credits** | GPT-4o-mini equivalent. |
+| **Deep Analysis** | **~15-90 Credits** | Varies heavily by job description length. |
+| **Resume Tailoring** | **~20 Credits** | High context. |
+| **Cover Letter Gen** | **~5-30 Credits** | Depends on length/iterations. |
 
 ### Payment Provider
 - **Stripe** for subscriptions and one-time payments
@@ -84,18 +112,24 @@ Instead of exposing raw LLM tokens (confusing to users), sell **"Finder Credits"
 ### Implementation Strategy (Backend)
 
 **Database updates:**
-- Add `credit_balance` column to `SessionRecord`
-- Rename `count` to `tokens_used` in `AnalysisUsage`
+- Track credits as two buckets: `subscription_credits` and `one_time_credits`
+- Rename `count` to `credits_used` in `AnalysisUsage`
 
 **Usage service updates:**
-- Deduct tokens/credits instead of incrementing a counter
-- Use `total_tokens` from `_log_usage` in `llm_service.py` for exact deduction
+- **Estimate**: Block if estimated cost exceeds available credits (sum of both buckets).
+- **Reserve**: Apply a max reserve cap per request to avoid runaway usage.
+- **Settle**: After LLM response, `credits = ceil(total_tokens / 1000)`. Deduct from DB.
+- **Hard cap**: enforce a server-side token cap per request to avoid negative balances.
+- **Top-Up**: Check subscription status at purchase time only before assigning credit amount.
+- **Deduction order**: use `subscription_credits` first, then `one_time_credits`.
+- **Renewal**: monthly subscription credits reset each cycle; one-time credits never expire.
+- **Cancellation rule**: unused subscription credits expire at the end of the billing period (0% conversion).
 
 ### Implementation Strategy (Frontend)
 
-- **Credit Balance Display:** Show "Credits: 1,250" in header
-- **Cost Estimates:** "Analyze this job? (Est. ~50 credits)", "Deep Analysis (Est. ~150 credits)"
-- **Out of Credits:** Trigger Stripe Checkout modal when balance is too low for an action
+- **Credit Balance Display:** Show total credits (subscription + one-time) in header
+- **Cost Estimates:** "Analyze this job? (Est. ~5 Credits)", "Deep Analysis (Est. ~15-90 Credits)"
+- **Out of Credits:** Trigger Stripe Checkout modal when balance is too low for an action. Highlight subscriber bonus.
 
 ### LLM Cost Control (Margins)
 
@@ -109,6 +143,34 @@ Instead of exposing raw LLM tokens (confusing to users), sell **"Finder Credits"
 - **Fairness:** Users pay for what they use. Heavy users cover their own API costs.
 - **Scalability:** Lock in a margin (e.g., 50% markup on token costs) regardless of how heavy the usage is.
 - **Flexibility:** Add new expensive features (e.g., "Mock Interview Chat") without changing plan prices—just set a higher credit cost for that feature.
+
+## Authentication (Planned)
+
+### Trigger + Incentive
+- Show signup modal after resume parsing + first matches load.
+- Incentive: **+100 one-time credits** on signup (grant once per user).
+
+### Auth Provider
+- **Auth.js** with Google + LinkedIn OAuth.
+- Email + password sign-up (with verification) planned for later.
+- Use **database-backed sessions** (not JWT) for server-side invalidation and TTL.
+
+### Session → User Conversion
+- Keep existing session tables; add nullable `user_id` fields for linkage.
+- After OAuth success, call `POST /api/auth/convert-session`:
+  - Link `session_id` to `user_id`.
+  - Attach existing session-scoped data to the user.
+  - Grant 100 one-time credits if not already granted.
+- **Guest session TTL**: non‑signup sessions expire after 24 hours; conversion must occur before expiry or data is purged.
+
+### Security Guardrails
+- HttpOnly cookies, CSRF protection, OAuth state/PKCE.
+- Session TTL enforced server-side; rotate sessions after sensitive events.
+- If a session has `user_id`, only allow access when authenticated as that user.
+
+### Subscription Credits Policy
+- **0% conversion on cancel**: subscription credits expire at period end.
+- One-time credits never expire.
 
 ## Tech Stack (Finalized)
 
@@ -154,7 +216,8 @@ Instead of exposing raw LLM tokens (confusing to users), sell **"Finder Credits"
 - **Redis** (sessions, rate limiting, Celery broker)
 
 ### Rate Limiting
-- FastAPI middleware + Redis
+- **SlowAPI** rate limiting (current)
+- Add **Redis-backed** limiter for multi-instance production deployments
 
 ### Auth (Post-MVP)
 - Plan for JWT or NextAuth when account conversion is added
@@ -500,18 +563,16 @@ sequenceDiagram
 
 ## Assisted Apply UX Flow
 
-### Free Tier
-- Select up to 5 jobs/day
-- View match reasons
-- Open apply link (no cover letter)
-
-### Pro Tier
-- Unlimited job selections
-- For each selected job, user picks **cover letter tone**: formal / concise / technical
-- Generate tailored cover letter via LLM (resume-truth enforced)
-- Provide:
-  - Copy-to-clipboard
-  - Download as PDF/DOCX
+### Credits-Based Access (Pay-for-what-you-use)
+- No fixed “free vs pro” feature gates in the product flow.
+- Users can select jobs and run actions as long as they have available credits.
+- **Actions** (charged by actual `total_tokens` → credits):
+  - Match analysis (A–D grade)
+  - Deep analysis (missing skills + learning resources)
+  - Resume review / tailoring
+  - Cover letter editor suggestions (ops + diff)
+- Assisted apply remains **manual submission only**:
+  - Prefill Greenhouse forms where possible
   - Open employer application page (user manually submits)
 
 ## Compliance & Trust
@@ -554,10 +615,11 @@ jb-finder-app/
 
 ## Next Steps (Planned)
 
-- Persist locked `title_terms` on session to survive reloads without re-query.
-- Add Alembic migrations so DB changes don't require deleting SQLite.
-- Reintroduce job skill extraction + deterministic scoring.
-- Expand filters UI (clear/reset, chips, saved filters).
-- Harden Stripe Checkout + Webhook flows.
+- Implement credits buckets + dynamic deduction (reserve cap + hard token caps; subscription credits expire monthly; one-time credits never expire).
+- Implement Stripe subscription + top-up packs with subscriber bonus applied at purchase time only.
+- Add “credits remaining” UI (header) + per-action estimates and post-action settlement receipts.
+- Harden Stripe webhooks (idempotency, signature verification, and subscription state syncing).
+- Add Redis (rate limiting + caching + future Celery broker).
+- Reintroduce job skill extraction + deterministic scoring (reduce reliance on LLM for ranking).
+- Expand filters UX (clear/reset, chips, saved filters).
 - Add basic analytics + error tracking.
-- Add Redis + Celery for async ingestion and parsing (optional for MVP).
