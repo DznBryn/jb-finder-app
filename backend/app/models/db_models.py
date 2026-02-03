@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, Text, ForeignKey, JSON
+from sqlalchemy import Boolean, DateTime, Integer, String, Text, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -87,6 +87,9 @@ class JobListing(Base):
     """Database model for ATS job postings."""
 
     __tablename__ = "jobs"
+    __table_args__ = (
+        UniqueConstraint("source", "source_job_id", name="uq_jobs_source_source_job_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

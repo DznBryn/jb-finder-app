@@ -5,6 +5,7 @@ import logging
 from typing import Iterable, List
 
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
 
 from app.models.db_models import JobListing
 
@@ -32,46 +33,55 @@ def upsert_jobs(
 ) -> int:
     """Insert or update job listings from an ATS adapter."""
 
-    count = 0
     job_list = list(jobs)
+    if not job_list:
+        return 0
+    count = len(job_list)
     refresh_time = datetime.utcnow()
+    rows = []
     for job in job_list:
         logger.info(
             "Processing job source_id=%s company=%s",
             job.get("source_job_id"),
             company_name or job.get("company"),
         )
-        existing = (
-            db.query(JobListing)
-            .filter(
-                JobListing.source == source,
-                JobListing.source_job_id == job["source_job_id"],
-            )
-            .first()
+        rows.append(
+            {
+                "company_id": company_id,
+                "company_name": company_name or job.get("company", ""),
+                "title": job.get("title", ""),
+                "location": job.get("location", ""),
+                "remote": "remote" in job.get("location", "").lower(),
+                "seniority": _infer_seniority(job.get("title", "")),
+                "description": job.get("description", ""),
+                "pay_ranges": job.get("pay_ranges", []),
+                "source": source,
+                "source_job_id": job.get("source_job_id", ""),
+                "apply_url": job.get("apply_url", ""),
+                "is_active": True,
+                "updated_at": refresh_time,
+            }
         )
 
-        payload = {
-            "company_id": company_id,
-            "company_name": company_name or job.get("company", ""),
-            "title": job.get("title", ""),
-            "location": job.get("location", ""),
-            "remote": "remote" in job.get("location", "").lower(),
-            "seniority": _infer_seniority(job.get("title", "")),
-            "description": job.get("description", ""),
-            "pay_ranges": job.get("pay_ranges", []),
-            "source": source,
-            "source_job_id": job.get("source_job_id", ""),
-            "apply_url": job.get("apply_url", ""),
-            "is_active": True,
-            "updated_at": refresh_time,
-        }
-
-        if existing:
-            for key, value in payload.items():
-                setattr(existing, key, value)
-        else:
-            db.add(JobListing(**payload))
-        count += 1
+    insert_stmt = insert(JobListing).values(rows)
+    update_columns = {
+        "company_id": insert_stmt.excluded.company_id,
+        "company_name": insert_stmt.excluded.company_name,
+        "title": insert_stmt.excluded.title,
+        "location": insert_stmt.excluded.location,
+        "remote": insert_stmt.excluded.remote,
+        "seniority": insert_stmt.excluded.seniority,
+        "description": insert_stmt.excluded.description,
+        "pay_ranges": insert_stmt.excluded.pay_ranges,
+        "apply_url": insert_stmt.excluded.apply_url,
+        "is_active": insert_stmt.excluded.is_active,
+        "updated_at": insert_stmt.excluded.updated_at,
+    }
+    upsert_stmt = insert_stmt.on_conflict_do_update(
+        index_elements=["source", "source_job_id"],
+        set_=update_columns,
+    )
+    db.execute(upsert_stmt)
 
     inactive_query = db.query(JobListing).filter(JobListing.source == source)
     if company_id is not None:

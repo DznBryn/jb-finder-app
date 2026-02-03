@@ -19,6 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "refresh_jobs" in inspector.get_table_names():
+        return
     op.create_table(
         "refresh_jobs",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
@@ -33,4 +37,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if "refresh_jobs" not in inspector.get_table_names():
+        return
     op.drop_table("refresh_jobs")

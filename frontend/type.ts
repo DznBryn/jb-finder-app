@@ -205,6 +205,11 @@ export type MatchFilters = {
   industry: string | null;
 };
 
+export type TitleCount = {
+  title: string;
+  count: number;
+};
+
 export type UploadResumeProps = {
   uploading: boolean;
   errorMessage: string | null;
@@ -222,6 +227,7 @@ export type MatchesSectionProps = {
   matchesPageSize: number;
   activeFilters: MatchFilters | null;
   filterTitleTerms: string;
+  titleOptions: TitleCount[];
   filterLocation: string;
   filterWorkMode: string;
   filterPayRange: string;

@@ -67,6 +67,19 @@ class MatchesResponse(BaseModel):
     total: int
 
 
+class TitleCount(BaseModel):
+    """Aggregated job title counts for filtering."""
+
+    title: str
+    count: int
+
+
+class TitleFiltersResponse(BaseModel):
+    """Response wrapper for title filter options."""
+
+    titles: List[TitleCount]
+
+
 class MatchFilters(BaseModel):
     """Optional filters to refine match results."""
 

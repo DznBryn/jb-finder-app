@@ -2,12 +2,25 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+try:
+    from dotenv import load_dotenv  # type: ignore
+except Exception:
+    load_dotenv = None
+
+if load_dotenv is not None:
+    repo_root = Path(__file__).resolve().parents[2]
+    load_dotenv(repo_root / ".env", override=False)
+    load_dotenv(Path(__file__).resolve().parent.parent / "app" / ".env", override=False)
+
+print(f"[alembic] AUTH_SCHEMA={os.getenv('AUTH_SCHEMA')}")
 
 from app.config import DATABASE_URL  # noqa: E402
 from app.db import Base  # noqa: E402

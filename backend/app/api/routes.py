@@ -5,6 +5,7 @@ from typing import Dict
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.schemas import (
@@ -31,6 +32,7 @@ from app.models.schemas import (
     JobSelectionResponse,
     MatchesRequest,
     MatchesResponse,
+    TitleFiltersResponse,
     SelectedJobDetail,
     SelectedJobsResponse,
     SessionProfile,
@@ -400,6 +402,24 @@ def post_matches(payload: MatchesRequest, db: Session = Depends(get_db)) -> Matc
         page=page,
         page_size=page_size,
         total=total,
+    )
+
+
+@router.get("/api/filters/titles", response_model=TitleFiltersResponse)
+def list_title_filters(limit: int = 100, db: Session = Depends(get_db)) -> TitleFiltersResponse:
+    """Return top job titles with counts for filter dropdowns."""
+
+    safe_limit = max(1, min(limit, 500))
+    rows = (
+        db.query(JobListing.title, func.count(JobListing.id))
+        .filter(JobListing.is_active.is_(True))
+        .group_by(JobListing.title)
+        .order_by(func.count(JobListing.id).desc(), JobListing.title.asc())
+        .limit(safe_limit)
+        .all()
+    )
+    return TitleFiltersResponse(
+        titles=[{"title": title, "count": count} for title, count in rows]
     )
 
 
