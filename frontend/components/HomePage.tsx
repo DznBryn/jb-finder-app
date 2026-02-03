@@ -15,7 +15,7 @@ import type {
   MatchResult,
   SelectionResponse,
   SessionProfile,
-} from "../type";
+} from "@/type";
 
 const MatchesSection = dynamic(() => import("./MatchesSection"), {
   loading: () => <MatchesSkeleton />,
@@ -50,6 +50,9 @@ export default function HomepageClient() {
   const [filterWorkMode, setFilterWorkMode] = useState("either");
   const [filterPayRange, setFilterPayRange] = useState("any");
   const [filterIndustry, setFilterIndustry] = useState("all");
+  const [titleOptions, setTitleOptions] = useState<
+    Array<{ title: string; count: number }>
+  >([]);
   const [activeFilters, setActiveFilters] = useState<MatchFilters | null>(null);
   const [lockedTitleTerms, setLockedTitleTerms] = useState<string[]>([]);
   const [hasLoadedLockedTerms, setHasLoadedLockedTerms] = useState(false);
@@ -72,7 +75,7 @@ export default function HomepageClient() {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
   const matchesPageSize = 25;
   const analyzedSelectedIds = new Set(
-    analyzedJobIds.filter((jobId) => selectedJobs.includes(jobId))
+    analyzedJobIds.filter((jobId: string) => selectedJobs.includes(jobId))
   );
   const sortedMatches = [...matches].sort((a, b) => {
     const gradeOrder = ["A", "B", "C", "D"];
@@ -87,11 +90,11 @@ export default function HomepageClient() {
     return 0;
   });
   const unanalyzedSelected = selectedJobs.filter(
-    (jobId) => !analyzedJobIds.includes(jobId)
+    (jobId: string) => !analyzedJobIds.includes(jobId)
   );
   const visibleJobIds = sortedMatches.map((match) => match.job_id);
   const handleSelectAllVisible = () => {
-    setSelectedJobs((prev) => {
+    setSelectedJobs((prev: string[]) => {
       const alreadySelected = new Set(prev);
       const newSelection = [...prev];
       for (const jobId of visibleJobIds) {
@@ -227,6 +230,28 @@ export default function HomepageClient() {
   }, [authStatus, sessionProfile?.session_id]);
 
   useEffect(() => {
+    let isMounted = true;
+    const loadTitles = async () => {
+      try {
+        const response = await fetch(`${apiBase}/api/filters/titles`);
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          titles: Array<{ title: string; count: number }>;
+        };
+        if (isMounted && Array.isArray(data.titles)) {
+          setTitleOptions(data.titles);
+        }
+      } catch {
+        // Ignore title filter errors.
+      }
+    };
+    loadTitles();
+    return () => {
+      isMounted = false;
+    };
+  }, [apiBase]);
+
+  useEffect(() => {
     if (!sessionProfile || hasLoadedLockedTerms) return;
     const key = `title_terms_${sessionProfile.session_id}`;
     const stored = window.localStorage.getItem(key);
@@ -350,9 +375,9 @@ export default function HomepageClient() {
   };
 
   const toggleJobSelection = (jobId: string) => {
-    setSelectedJobs((prev) => {
+    setSelectedJobs((prev: string[]) => {
       if (prev.includes(jobId)) {
-        return prev.filter((id) => id !== jobId);
+        return prev.filter((id: string) => id !== jobId);
       }
       return [...prev, jobId];
     });
@@ -523,7 +548,10 @@ export default function HomepageClient() {
     }
 
     const data = (await response.json()) as ApplyResult;
-    setApplyResults((prev) => ({ ...prev, [jobId]: data }));
+    setApplyResults((prev: Record<string, ApplyResult | null>) => ({
+      ...prev,
+      [jobId]: data,
+    }));
   };
 
   const matchGridProps = {
@@ -536,6 +564,7 @@ export default function HomepageClient() {
     matchesPageSize: matchesPageSize,
     activeFilters: activeFilters,
     filterTitleTerms: filterTitleTerms,
+    titleOptions: titleOptions,
     filterLocation: filterLocation,
     filterWorkMode: filterWorkMode,
     filterPayRange: filterPayRange,

@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import {
   Pagination,
   PaginationContent,
@@ -21,8 +22,8 @@ import {
 
 import { useSession } from "../app/session-context";
 import CoverLetterEditor from "./CoverLetterEditor";
-import type { MatchesSectionProps } from "../type";
-import { INDUSTRY_OPTIONS } from "../type";
+import type { MatchesSectionProps } from "@/type";
+import { INDUSTRY_OPTIONS } from "@/type";
 
 function getLocationBadge(label: string) {
   const normalized = label.toLowerCase();
@@ -69,6 +70,7 @@ export default function MatchesSection({
   matchesPageSize,
   activeFilters,
   filterTitleTerms,
+  titleOptions,
   filterLocation,
   filterWorkMode,
   filterPayRange,
@@ -102,6 +104,10 @@ export default function MatchesSection({
   onPrepareApply,
 }: MatchesSectionProps) {
   const { sessionProfile } = useSession();
+  const normalizedTitle = filterTitleTerms.trim().toLowerCase();
+  const selectedTitle =
+    titleOptions.find((option) => option.title.trim().toLowerCase() === normalizedTitle)
+      ?.title ?? "";
   if (!hasLoadedMatches) {
     const analyzedEntries = Object.values(analyzedJobDetails).sort((a, b) => {
       const gradeOrder = ["A", "B", "C", "D"];
@@ -260,7 +266,20 @@ export default function MatchesSection({
             </div>
             <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               <div>
-                <label className="text-xs text-slate-400">Title terms</label>
+                <label className="text-xs text-slate-400">Title</label>
+                <select
+                  className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+                  value={selectedTitle}
+                  onChange={(event) => onFilterTitleTermsChange(event.target.value)}
+                >
+                  <option value="">All titles</option>
+                  {titleOptions.map((option) => (
+                    <option key={option.title} value={option.title}>
+                      {option.title} ({option.count})
+                    </option>
+                  ))}
+                </select>
+                <label className="mt-3 block text-xs text-slate-400">Title terms</label>
                 <input
                   type="text"
                   placeholder="Backend Engineer, Platform"
@@ -643,7 +662,7 @@ export default function MatchesSection({
                 <PaginationItem>
                   <PaginationPrevious
                     href="#"
-                    onClick={(event) => {
+                    onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
                       event.preventDefault();
                       if (matchesPage > 1) {
                         onFetchMatches(matchesPage - 1, activeFilters);
@@ -659,7 +678,7 @@ export default function MatchesSection({
                     <PaginationItem>
                       <PaginationLink
                         href="#"
-                        onClick={(event) => {
+                        onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
                           event.preventDefault();
                           onFetchMatches(1, activeFilters);
                         }}
@@ -678,7 +697,7 @@ export default function MatchesSection({
                     <PaginationLink
                       href="#"
                       isActive={page === matchesPage}
-                      onClick={(event) => {
+                      onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
                         event.preventDefault();
                         onFetchMatches(page, activeFilters);
                       }}
@@ -695,7 +714,7 @@ export default function MatchesSection({
                     <PaginationItem>
                       <PaginationLink
                         href="#"
-                        onClick={(event) => {
+                        onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
                           event.preventDefault();
                           onFetchMatches(totalPages, activeFilters);
                         }}
@@ -709,7 +728,7 @@ export default function MatchesSection({
                 <PaginationItem>
                   <PaginationNext
                     href="#"
-                    onClick={(event) => {
+                    onClick={(event: React.MouseEvent<HTMLAnchorElement>) => {
                       event.preventDefault();
                       if (matchesPage < totalPages) {
                         onFetchMatches(matchesPage + 1, activeFilters);

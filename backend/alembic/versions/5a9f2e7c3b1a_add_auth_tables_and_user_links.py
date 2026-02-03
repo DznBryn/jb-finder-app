@@ -22,9 +22,12 @@ def _is_postgres() -> bool:
     return op.get_bind().dialect.name == "postgresql"
 
 def _auth_schema_name() -> str | None:
+
     if not _is_postgres():
         return None
+        
     schema = os.getenv("AUTH_SCHEMA", "auth").strip() or "auth"
+
     if schema == "public":
         return None
     return schema
