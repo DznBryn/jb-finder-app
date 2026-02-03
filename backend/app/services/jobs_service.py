@@ -30,6 +30,7 @@ def upsert_jobs(
     jobs: Iterable[dict],
     company_id: int | None = None,
     company_name: str | None = None,
+    company_industry: str | None = None,
 ) -> int:
     """Insert or update job listings from an ATS adapter."""
 
@@ -60,6 +61,7 @@ def upsert_jobs(
                 "apply_url": job.get("apply_url", ""),
                 "is_active": True,
                 "updated_at": refresh_time,
+                "industry": company_industry,
             }
         )
 
@@ -76,6 +78,7 @@ def upsert_jobs(
         "apply_url": insert_stmt.excluded.apply_url,
         "is_active": insert_stmt.excluded.is_active,
         "updated_at": insert_stmt.excluded.updated_at,
+        "industry": insert_stmt.excluded.industry,
     }
     upsert_stmt = insert_stmt.on_conflict_do_update(
         index_elements=["source", "source_job_id"],

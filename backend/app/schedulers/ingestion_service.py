@@ -36,6 +36,7 @@ def refresh_all_jobs(db: Session) -> Dict[str, int]:
                     jobs,
                     company_id=company.id,
                     company_name=company.name,
+                    company_industry=company.industry,
                 )
                 logger.info(
                     "Upserted %s jobs for %s", len(jobs), company.name
