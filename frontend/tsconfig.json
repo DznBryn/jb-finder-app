@@ -33,7 +33,7 @@
     "components/**/*.ts",
     "components/**/*.tsx",
     "next-auth.d.ts",
-    "type.d.ts",
+    "type.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

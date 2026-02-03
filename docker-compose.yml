@@ -19,7 +19,7 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://jb_finder:jb_finder_password@postgres:5432/jb_finder}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql+psycopg2://jb_finder:jb_finder_password@postgres:5432/jb_finder}
       APP_ENV: ${APP_ENV:-development}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
@@ -64,7 +64,7 @@ services:
       - backend
     command: listen --forward-to http://backend:8000/api/webhooks/stripe
     environment:
-      STRIPE_API_KEY: ${STRIPE_API_KEY:-}
+      STRIPE_API_KEY: ${STRIPE_SECRET_KEY:-}
 
 volumes:
   postgres_data:
