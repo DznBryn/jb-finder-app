@@ -37,9 +37,10 @@ def main() -> None:
         totals = refresh_all_jobs(db)
         mark_job_success(db, job, totals)
         logger.info("Refresh complete job_id=%s totals=%s", job.id, totals)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         if "job" in locals() and job:
             error_details = f"{exc.__class__.__name__}: {exc}\n{traceback.format_exc()}"
+            db.rollback()  # clear aborted transaction so we can update refresh_jobs
             mark_job_failed(db, job, error_details)
         logger.exception("Refresh failed")
     finally:

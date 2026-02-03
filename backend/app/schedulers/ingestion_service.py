@@ -41,7 +41,8 @@ def refresh_all_jobs(db: Session) -> Dict[str, int]:
                 logger.info(
                     "Upserted %s jobs for %s", len(jobs), company.name
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
+                db.rollback()  # clear aborted transaction so next company gets clean session
                 logger.exception(
                     "Failed to ingest Greenhouse token=%s", company.greenhouse_token
                 )
