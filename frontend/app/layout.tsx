@@ -1,6 +1,5 @@
+import AuthLayout from "@/components/AuthLayout";
 import "../styles/globals.css";
-import AppSidebar from "@/components/AppSidebar";
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import Providers from "./providers";
 
 export const metadata = {
@@ -13,16 +12,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Root layout wraps all pages with global styles and layout container.
   return (
     <html lang="en">
-      <body className="min-h-screen">
+      <body className="w-full h-full">
         <Providers>
-          <AppSidebar />
-          <main className="mx-auto max-w-full space-y-10">
-            <SidebarTrigger />
-            {children}
-          </main>
+          <AuthLayout>{children}</AuthLayout>
         </Providers>
       </body>
     </html>

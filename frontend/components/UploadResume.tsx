@@ -1,6 +1,6 @@
 "use client";
 
-import type { UploadResumeProps } from "../type";
+import type { UploadResumeProps } from "@/type";
 
 function normalizePhone(phone: string | null) {
   if (!phone) return null;
@@ -55,71 +55,6 @@ export default function UploadResume({
         </div>
       ) : null}
 
-      {sessionProfile ? (
-        <div className="mt-6 space-y-3 rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200">
-          <div>
-            <span className="font-semibold text-white">Session ID:</span>{" "}
-            {sessionProfile.session_id}
-          </div>
-          <div>
-            <span className="font-semibold text-white">LLM summary:</span>{" "}
-            {sessionProfile.llm_summary ?? "No summary returned."}
-          </div>
-          <div>
-            <span className="font-semibold text-white">Skills:</span>{" "}
-            {sessionProfile.extracted_skills.join(", ")}
-          </div>
-          <div>
-            <span className="font-semibold text-white">Titles:</span>{" "}
-            {sessionProfile.inferred_titles.join(", ")}
-          </div>
-          <div>
-            <span className="font-semibold text-white">Seniority:</span>{" "}
-            {sessionProfile.seniority}
-          </div>
-          <div>
-            <span className="font-semibold text-white">Years:</span>{" "}
-            {sessionProfile.years_experience}
-          </div>
-          <div>
-            <span className="font-semibold text-white">Stored file:</span>{" "}
-            {sessionProfile.resume_s3_key ?? "Local dev storage"}
-          </div>
-          {sessionProfile.first_name || sessionProfile.last_name ? (
-            <div>
-              <span className="font-semibold text-white">Name:</span>{" "}
-              {[sessionProfile.first_name, sessionProfile.last_name]
-                .filter(Boolean)
-                .join(" ")}
-            </div>
-          ) : null}
-          {sessionProfile.email ? (
-            <div>
-              <span className="font-semibold text-white">Email:</span>{" "}
-              {sessionProfile.email}
-            </div>
-          ) : null}
-          {sessionProfile.phone ? (
-            <div>
-              <span className="font-semibold text-white">Phone:</span>{" "}
-              {normalizePhone(sessionProfile.phone)}
-            </div>
-          ) : null}
-          {sessionProfile.location ? (
-            <div>
-              <span className="font-semibold text-white">Location:</span>{" "}
-              {sessionProfile.location}
-            </div>
-          ) : null}
-          {sessionProfile.social_links &&
-          sessionProfile.social_links.length > 0 ? (
-            <div>
-              <span className="font-semibold text-white">Social links:</span>{" "}
-              {sessionProfile.social_links.join(", ")}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
 }

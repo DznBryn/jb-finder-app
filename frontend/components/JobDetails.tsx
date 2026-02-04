@@ -21,7 +21,7 @@ import type {
   AnalyzedJobDetail,
   DeepAnalyzeResponse,
   GreenhouseJob,
-} from "../type";
+} from "@/type";
 
 const ResumeReview = dynamic(() => import("./ResumeReview"), {
   loading: () => <ResumeReviewSkeleton />,
@@ -334,23 +334,45 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
               {jobError}
             </div>
           ) : job ? (
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-2xl font-bold text-white">{job.title}</h1>
-                {job.location?.name ? (
-                  <p className="text-sm text-slate-400">{job.location.name}</p>
+            <div className="grid grid-cols-2  gap-4">
+              <div className="flex flex-col gap-2 w-full h-full">
+                <div>
+                  <h1 className="text-2xl font-bold text-white">{job.title}</h1>
+                  {job.location?.name ? (
+                    <p className="text-sm text-slate-400">{job.location.name}</p>
+                  ) : null}
+                </div>
+                {job.absolute_url ? (
+                  <a
+                    className="inline-flex items-center gap-1 text-sm font-medium text-emerald-300 hover:underline"
+                    href={job.absolute_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View on company site →
+                  </a>
                 ) : null}
               </div>
-              {job.absolute_url ? (
-                <a
-                  className="inline-flex items-center gap-1 text-sm font-medium text-emerald-300 hover:underline"
-                  href={job.absolute_url}
-                  target="_blank"
-                  rel="noreferrer"
+              <ButtonGroup className="self-start justify-self-end">
+                <Button
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 disabled:opacity-60"
+                  variant="outline"
+                  type="button"
+                  onClick={handleAnalyze}
+                  disabled={!canAnalyze}
                 >
-                  View on company site →
-                </a>
-              ) : null}
+                  {analyzing ? "Analyzing..." : "Analyze"}
+                </Button>
+                <Button
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 disabled:opacity-60"
+                  variant="outline"
+                  type="button"
+                  onClick={handleDeepAnalyze}
+                  disabled={!canDeepAnalyze}
+                >
+                  {deepAnalyzing ? "Deep analyzing..." : "Deep analyze"}
+                </Button>
+              </ButtonGroup>
             </div>
           ) : null}
         </div>
@@ -398,6 +420,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
               </p>
             </div>
             <ButtonGroup className="flex flex-wrap">
+
               <Dialog>
                 <DialogTrigger asChild>
                   <Button

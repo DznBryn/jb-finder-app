@@ -67,3 +67,7 @@ GREENHOUSE_TOKENS = [
 
 # Greenhouse applications
 GREENHOUSE_API_KEY = os.getenv("GREENHOUSE_API_KEY", "")
+
+# Auth schema for NextAuth/Auth.js users table (e.g. next_auth locally, auth on Supabase)
+_AUTH_SCHEMA_RAW = (os.getenv("AUTH_SCHEMA", "auth") or "auth").strip()
+AUTH_SCHEMA = "".join(c for c in _AUTH_SCHEMA_RAW if c.isalnum() or c == "_") or "auth"

@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.db_models import DeepAnalysisRecord, JobListing, SessionRecord
+from app.models.db_models import DeepAnalysisRecord, JobListing, ResumeSessionRecord
 from app.services.llm_service import (
     analyze_job_matches,
     extract_job_skills,
@@ -15,7 +15,7 @@ from app.services.llm_service import (
 
 def analyze_selected_jobs(
     db: Session,
-    session: SessionRecord,
+    session: ResumeSessionRecord,
     job_ids: List[str],
 ) -> Dict[str, object]:
     """Analyze selected jobs and return LLM grades."""
@@ -147,7 +147,7 @@ def analyze_selected_jobs(
 
 
 def deep_analyze_job(
-    db: Session, session: SessionRecord, job_id: str
+    db: Session, session: ResumeSessionRecord, job_id: str
 ) -> Dict[str, object]:
     """Return a deep analysis with learning resources for a single job."""
 

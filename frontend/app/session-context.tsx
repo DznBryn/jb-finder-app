@@ -6,7 +6,7 @@ import type {
   AnalyzedJobDetail,
   SessionContextValue,
   SessionProfile,
-} from "../type";
+} from "@/type";
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
 

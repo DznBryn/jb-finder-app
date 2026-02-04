@@ -74,6 +74,8 @@ export default function HomepageClient() {
 
   const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
   const matchesPageSize = 25;
+  const matchesCacheVersion = "v1";
+  const matchesCachePrefix = `matches_cache_${matchesCacheVersion}`;
   const analyzedSelectedIds = new Set(
     analyzedJobIds.filter((jobId: string) => selectedJobs.includes(jobId))
   );
@@ -132,6 +134,9 @@ export default function HomepageClient() {
 
     const form = event.currentTarget;
     const formData = new FormData(form);
+    if (sessionProfile?.session_id) {
+      formData.set("session_id", sessionProfile.session_id);
+    }
 
     try {
       const response = await fetch(`${apiBase}/api/resume/upload`, {
@@ -149,8 +154,8 @@ export default function HomepageClient() {
       setSessionProfile(data);
       const inferredTitles = Array.isArray(data.inferred_titles)
         ? data.inferred_titles
-            .filter((term) => typeof term === "string")
-            .map((term) => term.trim())
+            .filter((term: string) => typeof term === "string")
+            .map((term: string) => term.trim())
             .filter(Boolean)
         : [];
       setFilterTitleTerms(inferredTitles.join(", "));
@@ -175,6 +180,9 @@ export default function HomepageClient() {
       }
       if (typeof window !== "undefined") {
         window.localStorage.setItem("session_id", data.session_id);
+      }
+      if (typeof window !== "undefined") {
+        clearMatchesCache(data.session_id);
       }
       setMatchesPage(1);
       await fetchMatches(
@@ -277,6 +285,145 @@ export default function HomepageClient() {
     setHasLoadedLockedTerms(true);
   }, [sessionProfile, hasLoadedLockedTerms]);
 
+  const safeStorageGet = (key: string) => {
+    if (typeof window === "undefined") return null;
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+
+  const safeStorageSet = (key: string, value: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Ignore storage failures (private mode/quota).
+    }
+  };
+
+  const safeStorageRemove = (key: string) => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures.
+    }
+  };
+
+  const normalizeFilters = (filters: MatchFilters | null) => {
+    if (!filters) return null;
+    return {
+      title_terms: [...(filters.title_terms ?? [])].map((t) => t.trim()).filter(Boolean).sort(),
+      location_pref: filters.location_pref ?? null,
+      work_mode: filters.work_mode ?? null,
+      pay_range: filters.pay_range ?? null,
+      industry: filters.industry ?? null,
+    };
+  };
+
+  const stableStringify = (value: unknown): string => {
+    if (value === null || typeof value !== "object") {
+      return JSON.stringify(value);
+    }
+    if (Array.isArray(value)) {
+      return `[${value.map(stableStringify).join(",")}]`;
+    }
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",")}}`;
+  };
+
+  const getMatchesCacheKey = (
+    sessionId: string,
+    page: number,
+    filters: MatchFilters | null
+  ) => {
+    const normalized = normalizeFilters(filters);
+    const filtersKey = stableStringify(normalized);
+    return `${matchesCachePrefix}_${sessionId}_${page}_${matchesPageSize}_${filtersKey}`;
+  };
+
+  const clearMatchesCache = (sessionId: string) => {
+    if (typeof window === "undefined") return;
+    const prefix = `${matchesCachePrefix}_${sessionId}_`;
+    const keys: string[] = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key && key.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => safeStorageRemove(key));
+  };
+
+  const applyMatchesPayload = (data: {
+    matches: MatchResult[];
+    page: number;
+    page_size: number;
+    total: number;
+    title_terms?: string[];
+  }) => {
+    setMatches(data.matches);
+    setMatchesPage(data.page);
+    setMatchesTotal(data.total);
+    setHasLoadedMatches(true);
+    const titleTerms = data.title_terms ?? [];
+    if (titleTerms.length > 0) {
+      setFilterTitleTerms((current) =>
+        current.trim().length > 0 ? current : titleTerms.join(", ")
+      );
+    }
+    if (!activeFilters && lockedTitleTerms.length === 0) {
+      setLockedTitleTerms(titleTerms);
+      if (sessionProfile?.session_id) {
+        safeStorageSet(
+          `title_terms_${sessionProfile.session_id}`,
+          JSON.stringify(titleTerms)
+        );
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!sessionProfile?.session_id) return;
+    if (!hasLoadedLockedTerms) return;
+    if (hasLoadedMatches) return;
+    const effectiveFilters =
+      activeFilters ??
+      (lockedTitleTerms.length > 0
+        ? {
+            title_terms: lockedTitleTerms,
+            location_pref: null,
+            work_mode: null,
+            pay_range: null,
+            industry: null,
+          }
+        : null);
+    const cacheKey = getMatchesCacheKey(sessionProfile.session_id, 1, effectiveFilters);
+    const cached = safeStorageGet(cacheKey);
+    if (!cached) return;
+    try {
+      const data = JSON.parse(cached) as {
+        matches: MatchResult[];
+        page: number;
+        page_size: number;
+        total: number;
+        title_terms?: string[];
+      };
+      applyMatchesPayload(data);
+    } catch {
+      safeStorageRemove(cacheKey);
+    }
+  }, [
+    activeFilters,
+    hasLoadedLockedTerms,
+    hasLoadedMatches,
+    lockedTitleTerms,
+    sessionProfile?.session_id,
+  ]);
+
   const fetchMatches = async (
     page: number,
     filters: MatchFilters | null,
@@ -301,6 +448,29 @@ export default function HomepageClient() {
               industry: null,
             }
           : null);
+      const cacheKey = getMatchesCacheKey(
+        activeSession.session_id,
+        page,
+        effectiveFilters
+      );
+      const cached = safeStorageGet(cacheKey);
+      if (cached) {
+        try {
+          const data = JSON.parse(cached) as {
+            matches: MatchResult[];
+            page: number;
+            page_size: number;
+            total: number;
+            title_terms?: string[];
+          };
+          applyMatchesPayload(data);
+          setLoadingMatches(false);
+          return;
+        } catch {
+          safeStorageRemove(cacheKey);
+        }
+      }
+
       const response = await fetch(`${apiBase}/api/matches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -322,25 +492,8 @@ export default function HomepageClient() {
         title_terms?: string[];
       };
       console.log(data);
-      setMatches(data.matches);
-      setMatchesPage(data.page);
-      setMatchesTotal(data.total);
-      setHasLoadedMatches(true);
-      const titleTerms = data.title_terms ?? [];
-      if (titleTerms.length > 0) {
-        setFilterTitleTerms((current) =>
-          current.trim().length > 0 ? current : titleTerms.join(", ")
-        );
-      }
-      if (!filters && !activeFilters && lockedTitleTerms.length === 0) {
-        setLockedTitleTerms(titleTerms);
-        if (activeSession?.session_id) {
-          window.localStorage.setItem(
-            `title_terms_${activeSession.session_id}`,
-            JSON.stringify(titleTerms)
-          );
-        }
-      }
+      applyMatchesPayload(data);
+      safeStorageSet(cacheKey, JSON.stringify(data));
     } catch (error) {
       setMatchesError(
         error instanceof Error ? error.message : "Unexpected match error."

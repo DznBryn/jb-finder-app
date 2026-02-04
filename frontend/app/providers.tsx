@@ -9,14 +9,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <AuthSessionProvider>
       <SessionProvider>
-        <SidebarProvider
-          defaultOpen={false}
-          style={
-            {
-              "--sidebar-width": "25rem",
-            } as React.CSSProperties
-          }
-        >
+        <SidebarProvider>
           {children}
         </SidebarProvider>
       </SessionProvider>

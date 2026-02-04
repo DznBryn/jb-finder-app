@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase, Home, ListChecks, UserPlus } from "lucide-react";
+import { Briefcase, Home, LineChart, ListChecks, UserPlus } from "lucide-react";
 
 import {
   Sidebar,
@@ -10,25 +10,36 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { signOut } from "next-auth/react";
 
 
 export default function AppSidebar() {
   return (
-    <Sidebar collapsible="icon">
-      <SidebarContent>
+    <Sidebar collapsible="icon" className="bg-transparent">
+      <SidebarHeader className="bg-transparent px-2 py-2">
+        <SidebarTrigger className="text-slate-200 hover:bg-slate-800/60" />
+      </SidebarHeader>
+      <SidebarContent className="bg-transparent">
         <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-slate-400">Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive tooltip="Home">
+                <SidebarMenuButton
+                  asChild
+                  isActive
+                  tooltip="Home"
+                  className="text-slate-200 hover:bg-slate-800/60 data-[active=true]:bg-slate-800/70"
+                >
                   <Link
                     href="/"
                     className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
@@ -41,7 +52,11 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Assisted apply">
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Assisted apply"
+                  className="text-slate-200 hover:bg-slate-800/60"
+                >
                   <Link
                     href="/apply"
                     className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
@@ -53,16 +68,37 @@ export default function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Analysis"
+                  className="text-slate-200 hover:bg-slate-800/60"
+                >
+                  <Link
+                    href="/analysis"
+                    className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                  >
+                    <LineChart className="h-4 w-4" />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      Analysis
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarSeparator />
+
         <SidebarGroup>
-          <SidebarGroupLabel>Resources</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-slate-400">Resources</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Job details">
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Job details"
+                  className="text-slate-200 hover:bg-slate-800/60"
+                >
                   <Link
                     href="/jobs"
                     className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
@@ -78,24 +114,16 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="flex flex-col gap-3 px-2 pb-3">
+      <SidebarFooter className="bg-transparent px-2 pb-3">
         <Button
-          className="w-full justify-start gap-2 group-data-[collapsible=icon]:justify-center"
+          className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
           variant="outline"
+          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
         >
           <UserPlus className="h-4 w-4" />
-          <span className="group-data-[collapsible=icon]:hidden">Sign up</span>
+          <span className="group-data-[collapsible=icon]:hidden">Sign out</span>
         </Button>
-        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-          <div className="h-8 w-8 rounded-full bg-slate-800 text-slate-200 flex items-center justify-center text-xs font-semibold">
-            N
-          </div>
-          <div className="text-xs text-slate-500 group-data-[collapsible=icon]:hidden">
-            Save progress and credits.
-          </div>
-        </div>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }

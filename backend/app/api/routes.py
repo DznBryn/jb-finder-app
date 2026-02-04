@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Dict
 from uuid import UUID
@@ -55,6 +56,7 @@ from app.services.payment_service import (
     create_checkout_session,
     get_subscription_status,
     set_subscription_active,
+    set_user_plan,
     verify_stripe_signature,
 )
 from app.db import get_db
@@ -68,6 +70,7 @@ from app.services.session_service import (
     get_session,
     list_job_selections,
     save_job_selections,
+    update_session_from_upload,
 )
 from app.services.storage_service import save_resume_file
 from app.services.cover_letter_service import (
@@ -88,35 +91,83 @@ router = APIRouter()
 @router.post("/api/resume/upload", response_model=SessionProfile)
 def upload_resume(
     file: UploadFile = File(...),
+    session_id: str | None = Form(None),
     location_pref: str | None = Form(None),
     remote_pref: bool | None = Form(None),
     db: Session = Depends(get_db),
 ) -> SessionProfile:
-    """Create a temporary session profile from an uploaded resume file."""
+    """Create or update a session from an uploaded resume file.
+
+    If session_id is provided and the session exists with a resume, the file at
+    the existing storage key is replaced (no duplicate copy). If the uploaded
+    file has the same content hash as the existing one, storage and DB update
+    are skipped. Otherwise a new session and storage object are created.
+    """
 
     file_bytes = file.file.read()
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
     resume_text = parse_resume_file(file.filename, file_bytes)
-    resume_s3_key = save_resume_file(file.filename, file_bytes)
-
     parsed = parse_resume_text(resume_text)
-    record = create_session(
-        db=db,
-        resume_text=resume_text,
-        resume_s3_key=resume_s3_key,
-        extracted_skills=parsed.get("extracted_skills", []),
-        inferred_titles=parsed.get("inferred_titles", []),
-        seniority=parsed.get("seniority", "mid"),
-        years_experience=int(parsed.get("years_experience", 0)),
-        location_pref=location_pref,
-        remote_pref=remote_pref,
-        llm_summary=parsed.get("summary"),
-        first_name=parsed.get("first_name"),
-        last_name=parsed.get("last_name"),
-        email=parsed.get("email"),
-        phone=parsed.get("phone"),
-        location=parsed.get("location"),
-        social_links=parsed.get("social_links", []),
-    )
+
+    existing = None
+    if session_id:
+        try:
+            existing = get_session(db, UUID(session_id))
+        except (ValueError, TypeError):
+            existing = None
+
+    if existing and existing.resume_s3_key:
+        if existing.resume_content_hash == content_hash:
+            # Exact same file: skip storage write and session update.
+            record = existing
+        else:
+            # Re-upload (different content): replace file at existing key.
+            resume_s3_key = save_resume_file(
+                file.filename, file_bytes, overwrite_key=existing.resume_s3_key
+            )
+            record = update_session_from_upload(
+                db=db,
+                session_id=UUID(session_id),
+                resume_text=resume_text,
+                resume_s3_key=resume_s3_key,
+                resume_content_hash=content_hash,
+                extracted_skills=parsed.get("extracted_skills", []),
+                inferred_titles=parsed.get("inferred_titles", []),
+                seniority=parsed.get("seniority", "mid"),
+                years_experience=int(parsed.get("years_experience", 0)),
+                location_pref=location_pref,
+                remote_pref=remote_pref,
+                llm_summary=parsed.get("summary"),
+                first_name=parsed.get("first_name"),
+                last_name=parsed.get("last_name"),
+                email=parsed.get("email"),
+                phone=parsed.get("phone"),
+                location=parsed.get("location"),
+                social_links=parsed.get("social_links", []),
+            )
+    else:
+        # New upload: create new storage object and session.
+        resume_s3_key = save_resume_file(file.filename, file_bytes)
+        record = create_session(
+            db=db,
+            resume_text=resume_text,
+            resume_s3_key=resume_s3_key,
+            resume_content_hash=content_hash,
+            extracted_skills=parsed.get("extracted_skills", []),
+            inferred_titles=parsed.get("inferred_titles", []),
+            seniority=parsed.get("seniority", "mid"),
+            years_experience=int(parsed.get("years_experience", 0)),
+            location_pref=location_pref,
+            remote_pref=remote_pref,
+            llm_summary=parsed.get("summary"),
+            first_name=parsed.get("first_name"),
+            last_name=parsed.get("last_name"),
+            email=parsed.get("email"),
+            phone=parsed.get("phone"),
+            location=parsed.get("location"),
+            social_links=parsed.get("social_links", []),
+        )
+
     return SessionProfile(
         session_id=UUID(record.id),
         resume_s3_key=record.resume_s3_key,
@@ -585,8 +636,10 @@ def resume_review(
 
 
 @router.post("/api/webhooks/stripe")
-async def stripe_webhook(request: Request) -> Dict[str, str]:
-    """Handle Stripe webhook payload and update subscription status."""
+async def stripe_webhook(
+    request: Request, db: Session = Depends(get_db)
+) -> Dict[str, str]:
+    """Handle Stripe webhook payload and update subscription status (plan on users when linked)."""
 
     payload = await request.body()
     signature = request.headers.get("stripe-signature", "")
@@ -596,7 +649,12 @@ async def stripe_webhook(request: Request) -> Dict[str, str]:
         session_id_raw = data.get("session_id")
         plan = data.get("plan", "monthly")
         if session_id_raw:
-            set_subscription_active(UUID(session_id_raw), plan)
+            sid = UUID(session_id_raw)
+            session_rec = get_session(db, sid)
+            if session_rec and session_rec.user_id:
+                set_user_plan(db, session_rec.user_id, plan)
+            else:
+                set_subscription_active(sid, plan)
         return {"status": "ok"}
 
     try:
@@ -609,16 +667,23 @@ async def stripe_webhook(request: Request) -> Dict[str, str]:
         session_id_raw = session_obj["metadata"].get("session_id")
         plan = session_obj["metadata"].get("plan", "monthly")
         if session_id_raw:
-            set_subscription_active(UUID(session_id_raw), plan)
+            sid = UUID(session_id_raw)
+            session_rec = get_session(db, sid)
+            if session_rec and session_rec.user_id:
+                set_user_plan(db, session_rec.user_id, plan)
+            else:
+                set_subscription_active(sid, plan)
 
     return {"status": "ok"}
 
 
 @router.get("/api/subscription/status", response_model=SubscriptionStatusResponse)
-def subscription_status(session_id: UUID) -> SubscriptionStatusResponse:
-    """Return the current plan and subscription status for a session."""
+def subscription_status(
+    session_id: UUID, db: Session = Depends(get_db)
+) -> SubscriptionStatusResponse:
+    """Return the current plan and subscription status (from users when session has user_id)."""
 
-    status = get_subscription_status(session_id)
+    status = get_subscription_status(session_id, db)
     return SubscriptionStatusResponse(plan=status.plan, status=status.status)
 
 
