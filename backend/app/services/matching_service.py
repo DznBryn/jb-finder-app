@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.db_models import JobListing, SessionRecord
+from app.models.db_models import JobListing, ResumeSessionRecord
 from app.services.llm_service import build_search_query
 
 logger = logging.getLogger("matching")
@@ -70,7 +70,7 @@ def _seniority_rank(level: str) -> int:
 
 def _passes_filters(
     job: JobListing,
-    session: SessionRecord,
+    session: ResumeSessionRecord,
     title_terms: List[str],
     location_terms: List[str],
     remote_pref: str,
@@ -111,7 +111,7 @@ def _passes_filters(
 
 def build_matches(
     db: Session,
-    session: SessionRecord,
+    session: ResumeSessionRecord,
     page: int,
     page_size: int,
     filters: Optional[dict],

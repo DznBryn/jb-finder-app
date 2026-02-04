@@ -7,7 +7,7 @@ from requests.auth import HTTPBasicAuth
 from sqlalchemy.orm import Session
 
 from app.config import GREENHOUSE_API_KEY
-from app.models.db_models import Company, JobListing, SessionRecord
+from app.models.db_models import Company, JobListing, ResumeSessionRecord
 
 
 def _find_job_and_token(db: Session, job_id: str) -> tuple[JobListing, str]:
@@ -49,7 +49,7 @@ def retrieve_job_post(db: Session, job_id: str) -> Dict[str, object]:
 
 def submit_application(
     db: Session,
-    session: SessionRecord,
+    session: ResumeSessionRecord,
     job_id: str,
     fields: Dict[str, object],
     data_compliance: Optional[Dict[str, bool]] = None,

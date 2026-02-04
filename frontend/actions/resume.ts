@@ -8,7 +8,13 @@ import type {
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
 
-export async function uploadResume(formData: FormData): Promise<SessionProfile> {
+export async function uploadResume(
+  formData: FormData,
+  sessionId?: string | null
+): Promise<SessionProfile> {
+  if (sessionId) {
+    formData.set('session_id', sessionId);
+  }
   const response = await fetch(`${apiBase}/api/resume/upload`, {
     method: 'POST',
     body: formData,

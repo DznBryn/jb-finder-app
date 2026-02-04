@@ -1,6 +1,6 @@
 "use client";
 
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 
 type LogoutButtonProps = {
@@ -14,6 +14,9 @@ export default function LogoutButton({
   size = "sm",
   className = "",
 }: LogoutButtonProps) {
+  const { status } = useSession();
+  const hasSession = status === "authenticated";
+
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/" });
   };
@@ -24,6 +27,7 @@ export default function LogoutButton({
       size={size}
       className={className}
       onClick={handleLogout}
+      disabled={!hasSession}
     >
       Sign out
     </Button>

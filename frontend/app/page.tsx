@@ -1,4 +1,15 @@
+import { authOptions } from "@/lib/auth";
 import HomepageClient from "../components/HomePage";
+import { getServerSession } from "next-auth/next";
+
+
+
+export async function printSessionData() {
+  const session = await getServerSession(authOptions as any);  
+  console.log("Session data on homepage server:", session);
+  // You can render or use the session as needed
+  return null;
+}
 
 function FeatureCard({
   title,
@@ -7,7 +18,7 @@ function FeatureCard({
   title: string;
   description: string;
 }) {
-  // Reusable card component for the landing page feature grid.
+  printSessionData();
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
       <h3 className="text-lg font-semibold text-slate-100">{title}</h3>
@@ -19,8 +30,8 @@ function FeatureCard({
 export default function HomePage() {
   return (
   
-      <div className="space-y-6 max-w-7xl mx-auto">
-        <section className="grid gap-4 md:grid-cols-3">
+      <div className="space-y-6 max-w-full mx-auto">
+        {/* <section className="grid gap-4 md:grid-cols-3">
           <FeatureCard
             title="Explainable matching"
             description="See why a role is a strong, medium, or weak fit with clear reasoning."
@@ -33,7 +44,7 @@ export default function HomePage() {
             title="Privacy-first"
             description="We assist you. You submit. No credential storage or automation."
           />
-        </section>
+        </section> */}
         <HomepageClient />
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
           <h2 className="text-xl font-semibold text-white">Pricing</h2>

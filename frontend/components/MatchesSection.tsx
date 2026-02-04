@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type React from "react";
 import {
   Pagination,
@@ -22,8 +23,16 @@ import {
 
 import { useSession } from "../app/session-context";
 import CoverLetterEditor from "./CoverLetterEditor";
+import ResumeReviewSkeleton from "./skeletons/ResumeReviewSkeleton";
 import type { MatchesSectionProps } from "@/type";
 import { INDUSTRY_OPTIONS } from "@/type";
+import { ButtonGroup } from "./ui/button-group";
+import { Button } from "./ui/button";
+import Link from "next/link";
+
+const ResumeReview = dynamic(() => import("./ResumeReview"), {
+  loading: () => <ResumeReviewSkeleton />,
+});
 
 function getLocationBadge(label: string) {
   const normalized = label.toLowerCase();
@@ -93,15 +102,11 @@ export default function MatchesSection({
   selectionError,
   analysisError,
   selectionResult,
-  applyTone,
-  applyResults,
   onAnalyzeSelections,
   onSelectAllVisible,
   onDeselectAll,
   onSaveSelections,
   onToggleJobSelection,
-  onApplyToneChange,
-  onPrepareApply,
 }: MatchesSectionProps) {
   const { sessionProfile } = useSession();
   const normalizedTitle = filterTitleTerms.trim().toLowerCase();
@@ -149,58 +154,59 @@ export default function MatchesSection({
               {analyzedEntries.map((detail) => {
                 const result = analysisResults[detail.job_id] ?? null;
                 return (
-                <div
-                  key={`analysis-${detail.job_id}`}
-                  className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-xs text-slate-400">
-                        Job ID: {detail.job_id}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold text-white">
-                        {detail.title}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {detail.company} • {detail.location}
-                      </p>
+                  <div
+                    key={`analysis-${detail.job_id}`}
+                    className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs text-slate-400">
+                          Job ID: {detail.job_id}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {detail.title}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {detail.company} • {detail.location}
+                        </p>
+                      </div>
+                      {result ? (
+                        <span
+                          className={`rounded-full border px-2 py-1 text-[10px] font-semibold min-w-20 text-center ${getGradeBadgeClasses(
+                            result.grade
+                          )}`}
+                        >
+                          Grade {result.grade}
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-slate-700 px-3 py-1 text-[10px] text-slate-300">
+                          Analysis pending
+                        </span>
+                      )}
                     </div>
                     {result ? (
-                      <span
-                        className={`rounded-full border px-2 py-1 text-[10px] font-semibold min-w-20 text-center ${getGradeBadgeClasses(
-                          result.grade
-                        )}`}
-                      >
-                        Grade {result.grade}
-                      </span>
-                    ) : (
-                      <span className="rounded-full border border-slate-700 px-3 py-1 text-[10px] text-slate-300">
-                        Analysis pending
-                      </span>
-                    )}
-                  </div>
-                  {result ? (
-                    <>
-                      <p className="mt-3 text-xs text-slate-300">
-                        {result.rationale}
-                      </p>
-                      {result.missing_skills?.length ? (
-                        <p className="mt-2 text-xs text-slate-400">
-                          Missing skills: {result.missing_skills.join(", ")}
+                      <>
+                        <p className="mt-3 text-xs text-slate-300">
+                          {result.rationale}
                         </p>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {detail.apply_url ? (
-                    <a
-                      className="mt-3 inline-flex text-xs font-semibold text-emerald-300"
-                      href={`/jobs/${detail.job_id}`}
-                    >
-                      View job details →
-                    </a>
-                  ) : null}
-                </div>
-              )})}
+                        {result.missing_skills?.length ? (
+                          <p className="mt-2 text-xs text-slate-400">
+                            Missing skills: {result.missing_skills.join(", ")}
+                          </p>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {detail.apply_url ? (
+                      <a
+                        className="mt-3 inline-flex text-xs font-semibold text-emerald-300"
+                        href={`/jobs/${detail.job_id}`}
+                      >
+                        View job details →
+                      </a>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
           </div>
         ) : (
@@ -352,9 +358,9 @@ export default function MatchesSection({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
+                  <Button
                     className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100"
-                    type="button"
+                    variant={"outline"}
                     onClick={onAnalyzeSelections}
                     disabled={
                       selectedJobs.length === 0 ||
@@ -364,31 +370,31 @@ export default function MatchesSection({
                     }
                   >
                     {analyzing ? "Analyzing..." : "Analyze selections"}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100"
-                    type="button"
+                    variant={"outline"}
                     onClick={onDeselectAll}
                     disabled={selectedJobs.length === 0 || loadingMatches}
                   >
                     Deselect all
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100"
-                    type="button"
+                    variant={"outline"}
                     onClick={onSelectAllVisible}
                     disabled={loadingMatches || matches.length === 0}
                   >
                     Select all (page)
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950"
-                    type="button"
+                    variant={"default"}
                     onClick={onSaveSelections}
                     disabled={selectedJobs.length === 0 || loadingMatches}
                   >
                     Save selections
-                  </button>
+                  </Button>
                 </div>
               </div>
               {analyzing ? (
@@ -436,118 +442,163 @@ export default function MatchesSection({
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {loadingMatches
                   ? Array.from({ length: 6 }).map((_, index) => (
-                      <div
-                        key={`loading-${index}`}
-                        className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200 animate-pulse"
-                      >
-                        <div className="mb-3 h-4 w-24 rounded bg-slate-800" />
-                        <div className="mb-2 h-4 w-3/4 rounded bg-slate-800" />
-                        <div className="mb-4 h-3 w-1/2 rounded bg-slate-800" />
-                        <div className="mb-4 flex gap-2">
-                          <div className="h-5 w-20 rounded-full bg-slate-800" />
-                          <div className="h-5 w-16 rounded-full bg-slate-800" />
-                        </div>
-                        <div className="h-20 rounded bg-slate-900" />
+                    <div
+                      key={`loading-${index}`}
+                      className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200 animate-pulse"
+                    >
+                      <div className="mb-3 h-4 w-24 rounded bg-slate-800" />
+                      <div className="mb-2 h-4 w-3/4 rounded bg-slate-800" />
+                      <div className="mb-4 h-3 w-1/2 rounded bg-slate-800" />
+                      <div className="mb-4 flex gap-2">
+                        <div className="h-5 w-20 rounded-full bg-slate-800" />
+                        <div className="h-5 w-16 rounded-full bg-slate-800" />
                       </div>
-                    ))
+                      <div className="h-20 rounded bg-slate-900" />
+                    </div>
+                  ))
                   : matches.map((match) => (
-                      <div
-                        key={match.job_id}
-                        className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200"
-                      >
-                        <label className="mb-3 flex items-center gap-2 text-xs text-slate-400">
-                          <input
-                            type="checkbox"
-                            checked={selectedJobs.includes(match.job_id)}
-                            onChange={() => onToggleJobSelection(match.job_id)}
-                          />
-                          Select for apply
-                        </label>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-base font-semibold text-white">
-                              {match.title}
-                            </p>
-                            <p className="text-sm text-slate-400">
-                              {match.company}
-                            </p>
-                          </div>
-                          {analysisResults[match.job_id] ? (
-                            <div className="flex flex-col items-end gap-1 text-right min-w-24">
-                              <span
-                                className={`rounded-full border px-3 py-1 text-xs font-semibold ${getGradeBadgeClasses(
-                                  analysisResults[match.job_id]?.grade ?? "D"
-                                )}`}
-                              >
-                                Grade {analysisResults[match.job_id]?.grade ?? "D"}
-                              </span>
-                              {analysisBest === match.job_id ? (
-                                <span className="text-[10px] uppercase text-emerald-200">
-                                  Best match
-                                </span>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {splitLocationBadges(match.location).map((badge) => (
-                            <span
-                              key={`${match.job_id}-${badge.label}`}
-                              className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${badge.classes}`}
-                            >
-                              {badge.label}
-                            </span>
-                          ))}
+                    <div
+                      key={match.job_id}
+                      className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200 flex flex-col gap-3  "
+                    >
+                      <label className="flex items-center gap-2 text-xs text-slate-400">
+                        <input
+                          type="checkbox"
+                          checked={selectedJobs.includes(match.job_id)}
+                          onChange={() => onToggleJobSelection(match.job_id)}
+                        />
+                        Select for apply
+                      </label>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-white">
+                            {match.title}
+                          </p>
+                          <p className="text-sm text-slate-400">
+                            {match.company}
+                          </p>
                         </div>
                         {analysisResults[match.job_id] ? (
-                          <div className="mt-3 space-y-2 text-xs text-slate-300">
-                            <p>{analysisResults[match.job_id]?.rationale}</p>
-                            {analysisResults[match.job_id]?.missing_skills?.length ? (
-                              <p className="text-slate-400">
-                                Missing skills:{" "}
-                                {analysisResults[match.job_id]?.missing_skills.join(
-                                  ", "
-                                )}
-                              </p>
+                          <div className="flex flex-col items-end gap-1 text-right min-w-24">
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${getGradeBadgeClasses(
+                                analysisResults[match.job_id]?.grade ?? "D"
+                              )}`}
+                            >
+                              Grade {analysisResults[match.job_id]?.grade ?? "D"}
+                            </span>
+                            {analysisBest === match.job_id ? (
+                              <span className="text-[10px] uppercase text-emerald-200">
+                                Best match
+                              </span>
                             ) : null}
                           </div>
-                        ) : analyzing && selectedJobs.includes(match.job_id) ? (
-                          <div className="mt-3 space-y-2 text-xs text-slate-300">
-                            <div className="h-3 w-3/4 rounded bg-slate-800 animate-pulse" />
-                            <div className="h-3 w-1/2 rounded bg-slate-800 animate-pulse" />
-                          </div>
                         ) : null}
-                        <div className="mt-3 flex flex-wrap gap-2">
+                      </div>
+                      <div className=" flex flex-wrap gap-2">
+                        {splitLocationBadges(match.location).map((badge) => (
+                          <span
+                            key={`${match.job_id}-${badge.label}`}
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${badge.classes}`}
+                          >
+                            {badge.label}
+                          </span>
+                        ))}
+                      </div>
+
+                      {analysisResults[match.job_id] ? (
+                        <div className="mt-3 space-y-2 text-xs text-slate-300">
+                          <p>{analysisResults[match.job_id]?.rationale}</p>
+                          {analysisResults[match.job_id]?.missing_skills?.length ? (
+                            <p className="text-slate-400">
+                              Missing skills:{" "}
+                              {analysisResults[match.job_id]?.missing_skills.join(
+                                ", "
+                              )}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : analyzing && selectedJobs.includes(match.job_id) ? (
+                        <div className="mt-3 space-y-2 text-xs text-slate-300">
+                          <div className="h-3 w-3/4 rounded bg-slate-800 animate-pulse" />
+                          <div className="h-3 w-1/2 rounded bg-slate-800 animate-pulse" />
+                        </div>
+                      ) : null}
+
+                      {match.pay_ranges && match.pay_ranges.length > 0 ? (
+                        <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-200">
+                          <p className="font-semibold text-emerald-100">
+                            Pay range
+                          </p>
+                          {match.pay_ranges.map((range, index) => {
+                            const min =
+                              typeof range.min_cents === "number"
+                                ? range.min_cents / 100
+                                : null;
+                            const max =
+                              typeof range.max_cents === "number"
+                                ? range.max_cents / 100
+                                : null;
+                            const currency = range.currency_type ?? "USD";
+                            return (
+                              <div
+                                key={`${match.job_id}-range-${index}`}
+                                className="mt-2"
+                              >
+                                {range.title ? (
+                                  <p className="text-xs">{range.title}</p>
+                                ) : null}
+                                {min !== null && max !== null ? (
+                                  <p className="font-bold text-md">
+                                    {min.toLocaleString()}–
+                                    {max.toLocaleString()} {currency}
+                                  </p>
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      <div className="grid grid-cols-2 gap-2 items-center w-full">
+                        <Link
+                          className=" inline-flex text-xs font-semibold text-emerald-300"
+                          href={`/jobs/${match.job_id}`}
+                        >
+                          View job details →
+                        </Link>
+                        <ButtonGroup>
                           <Dialog>
                             <DialogTrigger asChild>
-                              <button
-                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
-                                type="button"
+                              <Button
+                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 bg-transparent"
+                                variant="outline"
                               >
-                                Tailor resume for ATS
-                              </button>
+                                Review resume
+                              </Button>
                             </DialogTrigger>
                             <DialogContent variant="fullscreen">
                               <DialogHeader>
-                                <DialogTitle>Tailor resume for ATS</DialogTitle>
+                                <DialogTitle>Resume review</DialogTitle>
                                 <DialogDescription>
-                                  We will tailor your resume to better match this job post
-                                  and improve ATS alignment. (Coming next)
+                                  Review your resume against this role with targeted improvements.
                                 </DialogDescription>
                               </DialogHeader>
-                              <div className="text-sm text-slate-500">
-                                Job: {match.title} at {match.company}
-                              </div>
+                              <ResumeReview
+                                sessionId={sessionProfile?.session_id ?? null}
+                                jobId={match.job_id}
+                                jobTitle={match.title}
+                                companyName={match.company}
+                              />
                             </DialogContent>
                           </Dialog>
                           <Dialog>
                             <DialogTrigger asChild>
-                              <button
-                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
-                                type="button"
+                              <Button
+                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 bg-transparent"
+                                variant="outline"
                               >
-                                Edit cover letter
-                              </button>
+                                Cover letter
+                              </Button>
                             </DialogTrigger>
                             <DialogContent variant="fullscreen">
                               <DialogHeader>
@@ -564,91 +615,10 @@ export default function MatchesSection({
                               />
                             </DialogContent>
                           </Dialog>
-                        </div>
-                        {match.pay_ranges && match.pay_ranges.length > 0 ? (
-                          <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-200">
-                            <p className="font-semibold text-emerald-100">
-                              Pay range
-                            </p>
-                            {match.pay_ranges.map((range, index) => {
-                              const min =
-                                typeof range.min_cents === "number"
-                                  ? range.min_cents / 100
-                                  : null;
-                              const max =
-                                typeof range.max_cents === "number"
-                                  ? range.max_cents / 100
-                                  : null;
-                              const currency = range.currency_type ?? "USD";
-                              return (
-                                <div
-                                  key={`${match.job_id}-range-${index}`}
-                                  className="mt-2"
-                                >
-                                  {range.title ? (
-                                    <p className="text-xs">{range.title}</p>
-                                  ) : null}
-                                  {min !== null && max !== null ? (
-                                    <p className="font-bold text-md">
-                                      {min.toLocaleString()}–
-                                      {max.toLocaleString()} {currency}
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : null}
-                        <a
-                          className="mt-4 inline-flex text-xs font-semibold text-emerald-300"
-                          href={match.apply_url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open application link →
-                        </a>
-                        <div className="mt-4 flex flex-col gap-2">
-                          <label className="text-xs text-slate-400">
-                            Cover letter tone (Pro only)
-                          </label>
-                          <select
-                            className="w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
-                            value={applyTone}
-                            onChange={(event) =>
-                              onApplyToneChange(event.target.value)
-                            }
-                          >
-                            <option value="formal">Formal</option>
-                            <option value="concise">Concise</option>
-                            <option value="technical">Technical</option>
-                          </select>
-                          <button
-                            className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
-                            type="button"
-                            onClick={() => onPrepareApply(match.job_id)}
-                          >
-                            Prepare application
-                          </button>
-                          {applyResults[match.job_id] ? (
-                            <div className="rounded-md border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-200">
-                              <p className="font-semibold text-white">
-                                Prepared application
-                              </p>
-                              <p className="mt-2 whitespace-pre-line text-slate-300">
-                                {applyResults[match.job_id]?.cover_letter_text ??
-                                  "Cover letter available on Pro only."}
-                              </p>
-                            </div>
-                          ) : null}
-                          <a
-                            className="text-xs font-semibold text-emerald-300"
-                            href={`/jobs/${match.job_id}`}
-                          >
-                            View job details →
-                          </a>
-                        </div>
+                        </ButtonGroup>
                       </div>
-                    ))}
+                    </div>
+                  ))}
               </div>
             </>
           ) : (

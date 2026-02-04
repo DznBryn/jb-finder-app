@@ -30,15 +30,16 @@ INDUSTRY_CHOICES = [
 ]
 
 
-class SessionRecord(Base):
-    """Database model for a resume upload session."""
+class ResumeSessionRecord(Base):
+    """Database model for a resume upload session (app session, not NextAuth session)."""
 
-    __tablename__ = "sessions"
+    __tablename__ = "resume_sessions"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
     resume_text: Mapped[str] = mapped_column(Text)
     resume_s3_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    resume_content_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     extracted_skills: Mapped[list] = mapped_column(JSON, default=list)
     inferred_titles: Mapped[list] = mapped_column(JSON, default=list)
     seniority: Mapped[str] = mapped_column(String(32))
@@ -57,6 +58,34 @@ class SessionRecord(Base):
     daily_selections: Mapped[int] = mapped_column(Integer, default=0)
     daily_selection_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     plan: Mapped[str] = mapped_column(String(16), default="free")
+
+
+class ResumeRecord(Base):
+    """User-scoped resume (session-like data without session_id or plan)."""
+
+    __tablename__ = "resumes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    resume_text: Mapped[str] = mapped_column(Text)
+    resume_s3_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    resume_content_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    extracted_skills: Mapped[list] = mapped_column(JSON, default=list)
+    inferred_titles: Mapped[list] = mapped_column(JSON, default=list)
+    seniority: Mapped[str] = mapped_column(String(32))
+    years_experience: Mapped[int] = mapped_column(Integer)
+    location_pref: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    remote_pref: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    llm_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    first_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    location: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    social_links: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    daily_selections: Mapped[int] = mapped_column(Integer, default=0)
+    daily_selection_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
 
 class JobSelection(Base):

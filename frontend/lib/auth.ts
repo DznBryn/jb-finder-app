@@ -11,6 +11,7 @@ export const authOptions = {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           prompt: "consent",
@@ -23,10 +24,21 @@ export const authOptions = {
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID ?? "",
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
-      authorization: {
-        params: {
-          scope: "r_liteprofile r_emailaddress",
-        },
+      allowDangerousEmailAccountLinking: true,
+      // Required so NextAuth/openid-client accepts LinkedIn's ID token iss claim.
+      issuer: "https://www.linkedin.com/oauth",
+      jwks_endpoint: "https://www.linkedin.com/oauth/openid/jwks",
+      // LinkedIn OIDC userinfo returns `sub`; NextAuth expects `id`. Map sub -> id.
+      profile(profile: Record<string, unknown>) {
+        return {
+          id: (profile.sub ?? profile.id ?? "") as string,
+          name: (profile.name ?? null) as string | null,
+          first_name: (profile.given_name ?? null) as string | null,
+          last_name: (profile.family_name ?? null) as string | null,
+          email: (profile.email ?? null) as string | null,
+          image: (profile.picture ?? profile.image ?? null) as string | null,
+          email_verified: (profile.email_verified ?? false) as boolean,
+        };
       },
     }),
   ],
@@ -35,15 +47,18 @@ export const authOptions = {
     maxAge: 30 * 24 * 60 * 60,
     updateAge: 24 * 60 * 60,
   },
+  pages: {
+    signIn: "/auth/signin",
+  },
   callbacks: {
     async signIn({
       user,
       account,
       profile,
     }: {
-      user: { id?: string; email?: string | null; name?: string | null };
+      user: { id?: string; email?: string | null; name?: string | null, first_name?: string | null, last_name?: string | null, email_verified?: boolean };
       account: { provider?: string } | null;
-      profile?: { email?: string; name?: string; picture?: string; image?: string } | undefined;
+      profile?: { email?: string; name?: string; picture?: string; image?: string, first_name?: string; last_name?: string; email_verified?: boolean } | undefined;
     }) {
       const provider = account?.provider ?? "unknown";
 
@@ -77,7 +92,7 @@ export const authOptions = {
       session,
       user,
     }: {
-      session: { user?: { id?: string } & Record<string, unknown> };
+      session: { user?: { id?: string, first_name?: string, last_name?: string, email_verified?: boolean, email?: string, name?: string, image?: string } & Record<string, unknown> };
       user?: { id?: string };
     }) {
       if (session.user && user?.id) {
