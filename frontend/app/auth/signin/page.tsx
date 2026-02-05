@@ -4,6 +4,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
+import { clearSessionAndStorage } from "@/lib/signOut";
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
@@ -23,6 +24,7 @@ function SignInContent() {
   const hasSession = status === "authenticated";
 
   const handleSignOut = async () => {
+    clearSessionAndStorage();
     await signOut({ callbackUrl: "/auth/signin" });
   };
 

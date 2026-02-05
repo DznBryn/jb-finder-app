@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.db_models import JobListing, ResumeSessionRecord
 from app.services.llm_service import build_search_query
+from pprint import pprint
 
 logger = logging.getLogger("matching")
 
@@ -109,7 +110,7 @@ def _passes_filters(
     return True
 
 
-def build_matches(
+def build_matches( 
     db: Session,
     session: ResumeSessionRecord,
     page: int,
@@ -126,6 +127,7 @@ def build_matches(
     titles_input = list(dict.fromkeys((session.inferred_titles or []) + filter_titles))
 
     matches = []
+    pprint(filter_titles)
     query_payload = build_search_query(
         titles_input,
         filter_location or session.location_pref,

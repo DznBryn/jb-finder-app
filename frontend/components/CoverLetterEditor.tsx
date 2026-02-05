@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUserBaseStore } from "@/lib/userBaseStore";
 import type {
   CoverLetterDocumentResponse,
   CoverLetterSuggestResponse,
@@ -78,6 +79,7 @@ export default function CoverLetterEditor({
   const [viewingPreview, setViewingPreview] = useState(false);
   const lastSavedRef = useRef("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
 
   const loadDocument = async () => {
     if (!sessionId) return;
@@ -193,6 +195,19 @@ export default function CoverLetterEditor({
           base_hash: draftHash,
         }),
       });
+      if (response.status === 402) {
+        const data = (await response.json().catch(() => ({}))) as {
+          detail?: { required?: number; available?: number };
+          required?: number;
+          available?: number;
+        };
+        const detail = data.detail ?? data;
+        const { useCheckoutModalStore } = await import(
+          "@/lib/checkoutModalStore"
+        );
+        useCheckoutModalStore.getState().openFor402(detail);
+        throw new Error("PAYMENT_REQUIRED");
+      }
       if (!response.ok) {
         const detail = await response.text();
         throw new Error(detail || "Failed to generate suggestion.");
@@ -203,7 +218,11 @@ export default function CoverLetterEditor({
       setExternalContent(data.preview);
       setExternalSyncKey((prev) => prev + 1);
       setEditorKey((prev) => prev + 1);
+      hydrateUserBase();
     } catch (err) {
+      if (err instanceof Error && err.message === "PAYMENT_REQUIRED") {
+        return;
+      }
       setError(err instanceof Error ? err.message : "Suggestion failed.");
     } finally {
       setSuggesting(false);

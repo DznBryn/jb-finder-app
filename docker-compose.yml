@@ -21,19 +21,39 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://jb_finder:jb_finder_password@postgres:5432/jb_finder}
       APP_ENV: ${APP_ENV:-development}
+      AUTH_SCHEMA: ${AUTH_SCHEMA:-public}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_PRICE_MONTHLY: ${STRIPE_PRICE_MONTHLY:-}
       STRIPE_PRICE_ONETIME: ${STRIPE_PRICE_ONETIME:-}
+      STRIPE_PRICE_MONTHLY_BASIC: ${STRIPE_PRICE_MONTHLY_BASIC:-}
+      STRIPE_PRICE_MONTHLY_PRO: ${STRIPE_PRICE_MONTHLY_PRO:-}
+      STRIPE_PRICE_TOPUP_SMALL: ${STRIPE_PRICE_TOPUP_SMALL:-}
+      STRIPE_PRICE_TOPUP_LARGE: ${STRIPE_PRICE_TOPUP_LARGE:-}
       STRIPE_WEBHOOK_BYPASS: "${STRIPE_WEBHOOK_BYPASS:-false}"
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       S3_BUCKET: ${S3_BUCKET:-}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
       SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-resumes}
     depends_on:
       - postgres
+    expose:
+      - "8000"
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    command: ["http", "backend:8000", "--log=stdout"]
+    ports:
+      - "4040:4040"
+    depends_on:
+      - backend
+    # Tunnel URL appears in: docker compose logs ngrok ; or open http://localhost:4040
+
 
   # frontend:
   #   build:

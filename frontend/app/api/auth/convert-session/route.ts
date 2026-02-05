@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     await client.query("BEGIN");
 
     const sessionRow = await client.query(
-      "SELECT * FROM sessions WHERE id = $1",
+      "SELECT * FROM resume_sessions WHERE id = $1",
       [sessionId]
     );
     if (sessionRow.rowCount === 0) {

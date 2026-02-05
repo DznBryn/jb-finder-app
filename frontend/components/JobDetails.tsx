@@ -2,7 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
+import { useSession as useAuthSession } from "next-auth/react";
 import { useSession } from "../app/session-context";
+import { useUserBaseStore } from "@/lib/userBaseStore";
+import { useUserResumeStore } from "@/lib/userResumeStore";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -69,6 +72,9 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     analyzedJobDetails,
     setAnalyzedJobDetails,
   } = useSession();
+  const { status } = useAuthSession();
+  const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
+  const resumes = useUserResumeStore((state) => state.resumes);
   const [job, setJob] = useState<GreenhouseJob | null>(null);
   const [loadingJob, setLoadingJob] = useState(true);
   const [jobError, setJobError] = useState<string | null>(null);
@@ -207,7 +213,18 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     loadCached();
   }, [apiBase, jobId, sessionProfile, deepAnalysis, deepAnalyzing]);
 
-  const analysisResult = analysisResults[jobId] ?? null;
+  const storeResult = useMemo(() => {
+    if (status !== "authenticated") return null;
+    for (const resume of resumes) {
+      const found = (resume.analyzed_jobs ?? []).find(
+        (entry) => entry.job_id === jobId
+      );
+      if (found) return found;
+    }
+    return null;
+  }, [jobId, resumes, status]);
+
+  const analysisResult = storeResult ?? analysisResults[jobId] ?? null;
   const canAnalyze = !!sessionProfile && !analysisResult && !analyzing;
   const canDeepAnalyze = !!sessionProfile && !deepAnalyzing && !deepAnalysis;
 
@@ -224,6 +241,17 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
           job_ids: [jobId],
         }),
       });
+      if (response.status === 402) {
+        const detail = (await response.json().catch(() => ({}))) as {
+          required?: number;
+          available?: number;
+        };
+        const { useCheckoutModalStore } = await import(
+          "@/lib/checkoutModalStore"
+        );
+        useCheckoutModalStore.getState().openFor402(detail);
+        throw new Error("PAYMENT_REQUIRED");
+      }
       if (!response.ok) {
         const detail = await response.text();
         throw new Error(detail || "Analysis failed.");
@@ -270,6 +298,9 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
         }
       }
     } catch (error) {
+      if (error instanceof Error && error.message === "PAYMENT_REQUIRED") {
+        return;
+      }
       setAnalysisError(
         error instanceof Error ? error.message : "Unexpected analysis error."
       );
@@ -291,13 +322,30 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
           job_id: jobId,
         }),
       });
+      if (response.status === 402) {
+        const data = (await response.json().catch(() => ({}))) as {
+          detail?: { required?: number; available?: number };
+          required?: number;
+          available?: number;
+        };
+        const detail = data.detail ?? data;
+        const { useCheckoutModalStore } = await import(
+          "@/lib/checkoutModalStore"
+        );
+        useCheckoutModalStore.getState().openFor402(detail);
+        throw new Error("PAYMENT_REQUIRED");
+      }
       if (!response.ok) {
         const detail = await response.text();
         throw new Error(detail || "Deep analysis failed.");
       }
       const data = (await response.json()) as DeepAnalyzeResponse;
       applyDeepAnalysis(data);
+      hydrateUserBase();
     } catch (error) {
+      if (error instanceof Error && error.message === "PAYMENT_REQUIRED") {
+        return;
+      }
       setDeepAnalysisError(
         error instanceof Error ? error.message : "Unexpected deep analysis error."
       );

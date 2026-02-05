@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Dict
-from uuid import UUID
+from datetime import datetime, timezone
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Request, UploadFile
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models.schemas import (
@@ -14,6 +15,9 @@ from app.models.schemas import (
     ApplyPrepareResponse,
     AnalyzeRequest,
     AnalyzeResponse,
+    CheckoutRequest,
+    CheckoutResponse,
+    CheckoutStatusResponse,
     CoverLetterDocumentResponse,
     CoverLetterDraftRequest,
     CoverLetterDraftResponse,
@@ -23,23 +27,21 @@ from app.models.schemas import (
     CoverLetterDocumentVersion,
     DeepAnalyzeRequest,
     DeepAnalyzeResponse,
-    ResumeReviewRequest,
-    ResumeReviewResponse,
-    ResumeTextResponse,
-    CheckoutRequest,
-    CheckoutResponse,
     GreenhouseApplyRequest,
     JobSelectionRequest,
     JobSelectionResponse,
     MatchesRequest,
     MatchesResponse,
-    TitleFiltersResponse,
+    ResumeReviewRequest,
+    ResumeReviewResponse,
+    ResumeTextResponse,
     SelectedJobDetail,
     SelectedJobsResponse,
     SessionProfile,
     SubscriptionStatusResponse,
     RefreshEnqueueResponse,
     RefreshStatusResponse,
+    TitleFiltersResponse,
 )
 from app.services.apply_service import prepare_cover_letter
 from app.services.analysis_service import (
@@ -51,18 +53,35 @@ from app.services.greenhouse_service import retrieve_job_post, submit_applicatio
 from app.services.matching_service import build_matches
 from app.services.jobs_service import list_jobs_by_ids
 from app.services.refresh_queue import enqueue_refresh, get_job
-from app.config import STRIPE_WEBHOOK_BYPASS
+from app.config import STRIPE_WEBHOOK_BYPASS, AUTH_SCHEMA, INTERNAL_API_KEY
 from app.services.payment_service import (
     create_checkout_session,
+    get_checkout_session_status,
     get_subscription_status,
+    get_user_plan,
+    grant_credits,
     set_subscription_active,
     set_user_plan,
     verify_stripe_signature,
 )
+from app.services.usage_service import (
+    check_can_afford,
+    estimate_credits,
+    get_available_credits,
+    settle_usage,
+)
 from app.db import get_db
 from app.services.llm_service import parse_resume_text
 from app.services.llm_service import suggest_cover_letter_edits
-from app.models.db_models import JobListing
+from app.models.db_models import (
+    AnalysisUsage,
+    CoverLetterDocument,
+    CoverLetterVersion,
+    DeepAnalysisRecord,
+    JobListing,
+    JobSelection,
+    ResumeRecord,
+)
 from app.services.llm_service import review_resume_for_job
 from app.services.resume_parser import parse_resume_file
 from app.services.session_service import (
@@ -88,10 +107,29 @@ from pprint import pprint
 router = APIRouter()
 
 
+def _auth_users_table() -> str:
+    return "users" if AUTH_SCHEMA == "public" else f'"{AUTH_SCHEMA}".users'
+
+
+def _verify_internal_api_key(
+    x_internal_api_key: str | None = Header(None, alias="X-Internal-API-Key"),
+    authorization: str | None = Header(None),
+) -> None:
+    """Require valid internal API key for server-to-server user data endpoints."""
+    if not INTERNAL_API_KEY:
+        return  # No key configured: allow (e.g. local dev). Set INTERNAL_API_KEY in production.
+    token = x_internal_api_key
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+    if token != INTERNAL_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing internal API key.")
+
+
 @router.post("/api/resume/upload", response_model=SessionProfile)
 def upload_resume(
     file: UploadFile = File(...),
     session_id: str | None = Form(None),
+    user_id: str | None = Form(None),
     location_pref: str | None = Form(None),
     remote_pref: bool | None = Form(None),
     db: Session = Depends(get_db),
@@ -167,6 +205,48 @@ def upload_resume(
             location=parsed.get("location"),
             social_links=parsed.get("social_links", []),
         )
+
+    # Link session to user when signed in so analyses are persisted and linked.
+    effective_uid = (user_id or (getattr(record, "user_id", None) or "")).strip()
+    if effective_uid:
+        record.user_id = effective_uid
+        db.commit()
+    if effective_uid and content_hash:
+        existing_resume_record = (
+            db.query(ResumeRecord)
+            .filter(
+                ResumeRecord.user_id == effective_uid,
+                ResumeRecord.resume_content_hash == content_hash,
+            )
+            .first()
+        )
+        if not existing_resume_record:
+            now = datetime.now(timezone.utc)
+            resume_row = ResumeRecord(
+                id=str(uuid4()),
+                user_id=effective_uid,
+                resume_text=record.resume_text,
+                resume_s3_key=record.resume_s3_key,
+                resume_content_hash=content_hash,
+                extracted_skills=record.extracted_skills or [],
+                inferred_titles=record.inferred_titles or [],
+                seniority=record.seniority or "mid",
+                years_experience=record.years_experience or 0,
+                location_pref=record.location_pref,
+                remote_pref=record.remote_pref,
+                llm_summary=record.llm_summary,
+                first_name=record.first_name,
+                last_name=record.last_name,
+                email=record.email,
+                phone=record.phone,
+                location=record.location,
+                social_links=record.social_links or [],
+                created_at=now,
+                daily_selections=0,
+                daily_selection_date=now.date().isoformat(),
+            )
+            db.add(resume_row)
+            db.commit()
 
     return SessionProfile(
         session_id=UUID(record.id),
@@ -341,6 +421,8 @@ def cover_letter_suggest(
     session = get_session(db, payload.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
+    user_id = getattr(session, "user_id", None)
+    _require_credits_or_402(user_id, db, "cover_letter")
 
     _ = get_or_create_document(db, str(payload.session_id), payload.job_id)
     base_hash = hash_content(payload.content or "")
@@ -372,7 +454,7 @@ def cover_letter_suggest(
         if session.years_experience:
             resume_facts.append(f"Years of experience: {session.years_experience}")
 
-    result = suggest_cover_letter_edits(
+    result, total_tokens = suggest_cover_letter_edits(
         content=payload.content or "",
         resume_facts=resume_facts,
         job_context=job_context,
@@ -380,6 +462,8 @@ def cover_letter_suggest(
         constraints=payload.constraints,
         selection=payload.selection,
     )
+    if user_id and total_tokens:
+        settle_usage(db, user_id, total_tokens, "cover_letter")
     ops = result.get("ops", [])
     explanation = result.get("explanation", "")
     warnings = list(result.get("warnings", []) or [])
@@ -435,6 +519,7 @@ def post_matches(payload: MatchesRequest, db: Session = Depends(get_db)) -> Matc
     """Return ranked job matches with optional filters."""
 
     session = get_session(db, payload.session_id)
+    pprint(payload)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
     page = max(payload.page, 1)
@@ -514,15 +599,68 @@ def prepare_application(
     )
 
 
-@router.post("/api/checkout/create", response_model=CheckoutResponse)
-def create_checkout(payload: CheckoutRequest) -> CheckoutResponse:
-    """Create a Stripe Checkout session and return the hosted URL."""
+def _require_credits_or_402(
+    user_id: str | None,
+    db: Session,
+    feature: str,
+) -> None:
+    """Raise HTTP 402 if user is missing or has insufficient credits."""
+    if not user_id:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "authentication_required",
+                "message": "Sign in to use this feature.",
+                "required": estimate_credits(feature),
+                "available": 0,
+            },
+        )
+    sub, onetime = get_available_credits(db, user_id)
+    total = sub + onetime
+    required = estimate_credits(feature)
+    if not check_can_afford(total, required):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "insufficient_credits",
+                "message": "Not enough credits.",
+                "required": required,
+                "available": total,
+            },
+        )
 
+
+@router.post("/api/checkout/create", response_model=CheckoutResponse)
+def create_checkout(
+    payload: CheckoutRequest,
+) -> CheckoutResponse:
+    """Create a Stripe Checkout session. For embedded mode returns client_secret."""
+
+    user_id = payload.user_id
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="user_id required (authenticate first).")
     try:
-        checkout_url = create_checkout_session(payload.session_id, payload.plan)
+        result = create_checkout_session(user_id, payload.plan, payload.ui_mode)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return CheckoutResponse(checkout_url=checkout_url)
+    return CheckoutResponse(
+        client_secret=result.get("client_secret"),
+        checkout_url=result.get("checkout_url"),
+    )
+
+
+@router.get("/api/checkout/status", response_model=CheckoutStatusResponse)
+def get_checkout_status(session_id: str) -> CheckoutStatusResponse:
+    """Return Stripe Checkout Session status for frontend polling."""
+    try:
+        status = get_checkout_session_status(session_id)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CheckoutStatusResponse(
+        status=status["status"],
+        payment_status=status["payment_status"],
+    )
 
 
 @router.post("/api/analyze", response_model=AnalyzeResponse)
@@ -533,10 +671,22 @@ def analyze_selections(
     """Analyze selected jobs with the LLM and return grades."""
 
     session = get_session(db, payload.session_id)
+    
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
+    user_id = getattr(session, "user_id", None)
+    _require_credits_or_402(user_id, db, "match_analysis")
 
-    analysis = analyze_selected_jobs(db, session, payload.job_ids)
+    analysis, total_tokens = analyze_selected_jobs(db, session, payload.job_ids)
+
+    if user_id and total_tokens:
+        settle_usage(db, user_id, total_tokens, "match_analysis")
+    
+    if user_id:
+        persist_match_analyses(
+            db, str(session.id), user_id, analysis.get("results", [])
+        )
+    
     return AnalyzeResponse(
         session_id=payload.session_id,
         results=analysis.get("results", []),
@@ -552,20 +702,28 @@ def analyze_deep(
     """Deep analysis with learning resources for a single job."""
 
     session = get_session(db, payload.session_id)
+    
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
+    
+    user_id = getattr(session, "user_id", None)
+    _require_credits_or_402(user_id, db, "deep_analysis")
 
     cached = get_deep_analysis(db, str(payload.session_id), payload.job_id)
+    
     if cached:
         return DeepAnalyzeResponse(**cached)
 
     try:
-        result = deep_analyze_job(db, session, payload.job_id)
+        result, total_tokens = deep_analyze_job(db, session, payload.job_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    if user_id and total_tokens:
+        settle_usage(db, user_id, total_tokens, "deep_analysis")
+    
     return DeepAnalyzeResponse(
         session_id=payload.session_id,
         job_id=result.get("job_id", payload.job_id),
@@ -603,6 +761,7 @@ def resume_review(
     session = get_session(db, payload.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
+    _require_credits_or_402(getattr(session, "user_id", None), db, "resume_review")
 
     try:
         job_int = int(payload.job_id)
@@ -648,31 +807,76 @@ async def stripe_webhook(
         data = json.loads(payload.decode("utf-8"))
         session_id_raw = data.get("session_id")
         plan = data.get("plan", "monthly")
+        
         if session_id_raw:
             sid = UUID(session_id_raw)
             session_rec = get_session(db, sid)
+            
             if session_rec and session_rec.user_id:
                 set_user_plan(db, session_rec.user_id, plan)
             else:
                 set_subscription_active(sid, plan)
         return {"status": "ok"}
 
+    print(payload)
     try:
         event = verify_stripe_signature(payload, signature)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
-        session_id_raw = session_obj["metadata"].get("session_id")
-        plan = session_obj["metadata"].get("plan", "monthly")
-        if session_id_raw:
-            sid = UUID(session_id_raw)
-            session_rec = get_session(db, sid)
-            if session_rec and session_rec.user_id:
-                set_user_plan(db, session_rec.user_id, plan)
-            else:
-                set_subscription_active(sid, plan)
+        metadata = session_obj.get("metadata") or {}
+        user_id = metadata.get("user_id")
+        plan = metadata.get("plan", "monthly")
+        if user_id:
+            is_subscriber = get_user_plan(db, user_id) in ("monthly_basic", "monthly_pro", "monthly")
+            grant_credits(db, user_id, plan, is_subscriber)
+            set_user_plan(db, user_id, plan)
+        else:
+            session_id_raw = metadata.get("session_id")
+            if session_id_raw:
+                sid = UUID(session_id_raw)
+                session_rec = get_session(db, sid)
+                if session_rec and session_rec.user_id:
+                    set_user_plan(db, session_rec.user_id, plan)
+                    is_subscriber = get_user_plan(db, session_rec.user_id) in (
+                        "monthly_basic",
+                        "monthly_pro",
+                        "monthly",
+                    )
+                    grant_credits(db, session_rec.user_id, plan, is_subscriber)
+                else:
+                    set_subscription_active(sid, plan)
+        return {"status": "ok"}
+
+    if event["type"] == "invoice.paid":
+        invoice = event["data"]["object"]
+        subscription_id = invoice.get("subscription")
+        if not subscription_id:
+            return {"status": "ok"}
+        sub = stripe.Subscription.retrieve(subscription_id)
+        metadata = sub.get("metadata") or {}
+        user_id = metadata.get("user_id")
+        if user_id:
+            plan = get_user_plan(db, user_id)
+            if plan in ("monthly_basic", "monthly_pro", "monthly"):
+                from app.services.payment_service import PLAN_CREDITS
+                credits = PLAN_CREDITS.get(plan) or PLAN_CREDITS.get("monthly_basic", 500)
+                db.execute(
+                    text(f"UPDATE {_auth_users_table()} SET subscription_credits = :amt WHERE id = :id"),
+                    {"amt": credits, "id": user_id},
+                )
+                db.commit()
+        return {"status": "ok"}
+
+    if event["type"] == "customer.subscription.deleted":
+        sub = event["data"]["object"]
+        metadata = sub.get("metadata") or {}
+        user_id = metadata.get("user_id")
+        if user_id:
+            set_user_plan(db, user_id, "free")
+        return {"status": "ok"}
 
     return {"status": "ok"}
 
@@ -685,6 +889,177 @@ def subscription_status(
 
     status = get_subscription_status(session_id, db)
     return SubscriptionStatusResponse(plan=status.plan, status=status.status)
+
+
+@router.get("/api/user/base")
+def user_base(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> Dict[str, object]:
+    """Return base user profile + wallet data. Requires internal API key."""
+
+    row = db.execute(
+        text(
+            f"""
+            SELECT id, name, email, image, plan, subscription_credits, one_time_credits
+            FROM {_auth_users_table()}
+            WHERE id = :user_id
+            """
+        ),
+        {"user_id": user_id},
+    ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return {
+        "profile": {
+            "id": row.id,
+            "name": row.name,
+            "email": row.email,
+            "image": row.image,
+            "locale": None,
+        },
+        "wallet": {
+            "plan": row.plan,
+            "subscription_credits": row.subscription_credits,
+            "one_time_credits": row.one_time_credits,
+            "stripe_customer_id": None,
+            "stripe_subscription_id": None,
+            "status": "active" if row.plan and row.plan != "free" else "none",
+        },
+        "updated_at": None,
+    }
+
+
+@router.get("/api/user/resumes")
+def user_resumes(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> Dict[str, object]:
+    """Return resumes and related data for a user. Requires internal API key."""
+
+    resumes = (
+        db.query(ResumeRecord)
+        .filter(ResumeRecord.user_id == user_id)
+        .order_by(ResumeRecord.created_at.desc())
+        .all()
+    )
+    
+    if not resumes:
+        return {"resumes": [], "saved_jobs": [], "analyzed_jobs": [], "cover_letters": []}
+
+    saved_job_ids = [
+        row.job_id
+        for row in db.query(JobSelection)
+        .filter(JobSelection.user_id == user_id)
+        .all()
+    ]
+    saved_jobs = []
+    
+    if saved_job_ids:
+        jobs = list_jobs_by_ids(db, saved_job_ids)
+        saved_jobs = [
+            {
+                "job_id": str(job.id),
+                "company": job.company_name,
+                "title": job.title,
+                "location": job.location,
+                "apply_url": job.apply_url,
+                "is_active": job.is_active,
+                "industry": job.industry,
+            }
+            for job in jobs
+        ]
+
+    deep_rows = (
+        db.query(DeepAnalysisRecord)
+        .filter(DeepAnalysisRecord.user_id == user_id)
+        .all()
+    )
+    
+    analyzed = []
+
+    if deep_rows:
+        analyzed_job_ids = [row.job_id for row in deep_rows]
+        analyzed_jobs = list_jobs_by_ids(db, analyzed_job_ids)
+        job_map = {str(j.id): j for j in analyzed_jobs}
+        
+        for row in deep_rows:
+            payload = row.payload or {}
+            job = job_map.get(row.job_id)
+        
+            analyzed.append(
+                {
+                    "job_id": row.job_id,
+                    "grade": payload.get("grade"),
+                    "rationale": payload.get("rationale"),
+                    "missing_skills": payload.get("missing_skills", []),
+                    "learning_resources": payload.get("learning_resources", []),
+                    "title": job.title if job else None,
+                    "company": job.company_name if job else None,
+                    "location": job.location if job else None,
+                    "apply_url": job.apply_url if job else None,
+                }
+            )
+
+    documents = (
+        db.query(CoverLetterDocument)
+        .filter(CoverLetterDocument.user_id == user_id)
+        .all()
+    )
+    doc_ids = [doc.id for doc in documents]
+    versions_by_doc: Dict[int, list] = {}
+    if doc_ids:
+        versions = (
+            db.query(CoverLetterVersion)
+            .filter(CoverLetterVersion.document_id.in_(doc_ids))
+            .order_by(CoverLetterVersion.created_at.desc())
+            .all()
+        )
+        for version in versions:
+            versions_by_doc.setdefault(version.document_id, []).append(
+                {
+                    "id": version.id,
+                    "job_id": version.job_id,
+                    "content": version.content,
+                    "created_at": version.created_at.isoformat()
+                    if version.created_at
+                    else None,
+                    "intent": version.intent,
+                }
+            )
+
+    cover_letters = []
+    for doc in documents:
+        cover_letters.append(
+            {
+                "job_id": doc.job_id,
+                "draft_content": doc.draft_content,
+                "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+                "versions": versions_by_doc.get(doc.id, []),
+            }
+        )
+
+    resume_payloads = [
+        {
+            "id": resume.id,
+            "user_id": resume.user_id,
+            "resume_s3_key": resume.resume_s3_key,
+            "resume_content_hash": resume.resume_content_hash,
+            "created_at": resume.created_at.isoformat() if resume.created_at else None,
+            "inferred_titles": resume.inferred_titles or [],
+            "extracted_skills": resume.extracted_skills or [],
+        }
+        for resume in resumes
+    ]
+
+    return {
+        "resumes": resume_payloads,
+        "saved_jobs": saved_jobs,
+        "analyzed_jobs": analyzed,
+        "cover_letters": cover_letters,
+    }
 
 
 @router.get("/api/jobs/selected")
@@ -725,7 +1100,7 @@ def greenhouse_job(job_id: str, db: Session = Depends(get_db)) -> Dict[str, obje
         return retrieve_job_post(db, job_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -736,10 +1111,12 @@ def greenhouse_apply(
     """Submit a Greenhouse application for a selected job."""
 
     session = get_session(db, payload.session_id)
+
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
 
     client_ip = request.client.host if request.client else None
+
     try:
         response = submit_application(
             db,
@@ -754,7 +1131,7 @@ def greenhouse_apply(
         return {"status": "ok", "response": response}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 

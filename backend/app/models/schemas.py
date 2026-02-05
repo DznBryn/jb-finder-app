@@ -144,16 +144,28 @@ class SelectedJobsResponse(BaseModel):
 
 
 class CheckoutRequest(BaseModel):
-    """Payload to start a Stripe Checkout session."""
+    """Payload to start a Stripe Checkout session. user_id is set by the server when proxying."""
 
-    session_id: UUID
-    plan: str = Field(..., description="monthly or one_time")
+    plan: str = Field(
+        ...,
+        description="Plan key: monthly_basic, monthly_pro, topup_small, topup_large",
+    )
+    ui_mode: str = Field(default="embedded", description="embedded or hosted")
+    user_id: Optional[str] = Field(None, description="Authenticated user ID (set by server proxy).")
 
 
 class CheckoutResponse(BaseModel):
-    """Response with a hosted checkout URL."""
+    """Response with client_secret for embedded checkout or checkout_url for redirect."""
 
-    checkout_url: str
+    client_secret: Optional[str] = None
+    checkout_url: Optional[str] = None
+
+
+class CheckoutStatusResponse(BaseModel):
+    """Stripe Checkout Session status for frontend polling."""
+
+    status: str
+    payment_status: str
 
 
 class SubscriptionStatusResponse(BaseModel):

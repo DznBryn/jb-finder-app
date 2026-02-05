@@ -53,7 +53,12 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_MONTHLY = os.getenv("STRIPE_PRICE_MONTHLY", "")
 STRIPE_PRICE_ONETIME = os.getenv("STRIPE_PRICE_ONETIME", "")
+STRIPE_PRICE_MONTHLY_BASIC = os.getenv("STRIPE_PRICE_MONTHLY_BASIC", "")  # $9.99/mo - 500 credits
+STRIPE_PRICE_MONTHLY_PRO = os.getenv("STRIPE_PRICE_MONTHLY_PRO", "")  # $24.99/mo - 2500 credits
+STRIPE_PRICE_TOPUP_SMALL = os.getenv("STRIPE_PRICE_TOPUP_SMALL", "")  # $4.99 - 200/300 credits
+STRIPE_PRICE_TOPUP_LARGE = os.getenv("STRIPE_PRICE_TOPUP_LARGE", "")  # $19.99 - 1000/1500 credits
 STRIPE_WEBHOOK_BYPASS = os.getenv("STRIPE_WEBHOOK_BYPASS", "false").lower() == "true"
+FRONTEND_URL = (os.getenv("FRONTEND_URL", "") or "http://localhost:3000").strip().rstrip("/")
 
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -68,6 +73,11 @@ GREENHOUSE_TOKENS = [
 # Greenhouse applications
 GREENHOUSE_API_KEY = os.getenv("GREENHOUSE_API_KEY", "")
 
-# Auth schema for NextAuth/Auth.js users table (e.g. next_auth locally, auth on Supabase)
-_AUTH_SCHEMA_RAW = (os.getenv("AUTH_SCHEMA", "auth") or "auth").strip()
-AUTH_SCHEMA = "".join(c for c in _AUTH_SCHEMA_RAW if c.isalnum() or c == "_") or "auth"
+# Auth schema for NextAuth/Auth.js users table. Use "public" if users live in public schema (local dev),
+# "next_auth" if using NextAuth with a dedicated schema, or "auth" on Supabase.
+_AUTH_SCHEMA_RAW = (os.getenv("AUTH_SCHEMA", "") or "").strip()
+AUTH_SCHEMA = "".join(c for c in _AUTH_SCHEMA_RAW if c.isalnum() or c == "_") or "public"
+
+# Internal API key for server-to-server calls (Next.js server -> backend). Required for /api/user/*.
+# Do not expose to the client. Set BACKEND_INTERNAL_API_KEY in Next.js and INTERNAL_API_KEY here (same value).
+INTERNAL_API_KEY = (os.getenv("INTERNAL_API_KEY", "") or os.getenv("BACKEND_INTERNAL_API_KEY", "")).strip()

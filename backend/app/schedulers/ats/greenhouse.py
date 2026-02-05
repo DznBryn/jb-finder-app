@@ -43,7 +43,7 @@ def fetch_jobs(board_token: str) -> List[dict]:
 
     url = f"https://boards-api.greenhouse.io/v1/boards/{board_token}/jobs?content=true"
     t_list_start = time.perf_counter()
-    response = requests.get(url, timeout=15)
+    response = requests.get(url, timeout=30)
     response.raise_for_status()
     data = response.json()
     t_list_elapsed = time.perf_counter() - t_list_start

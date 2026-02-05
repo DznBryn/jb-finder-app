@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.orm import Session
 
 from app.models.db_models import JobSelection, ResumeSessionRecord
+from pprint import pprint
 
 
 def _now_utc() -> datetime:

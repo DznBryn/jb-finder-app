@@ -30,7 +30,7 @@ function FeatureCard({
 export default function HomePage() {
   return (
   
-      <div className="space-y-6 max-w-full mx-auto">
+      <div className="space-y-6 w-full max-w-full mx-auto">
         {/* <section className="grid gap-4 md:grid-cols-3">
           <FeatureCard
             title="Explainable matching"
