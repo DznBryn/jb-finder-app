@@ -20,15 +20,15 @@ export default async function RootLayout({
   const userId = (session?.user as { id?: string } | undefined)?.id;
   let initialUserBase: UserBase | null = null;
   let initialResumes: UserResume[] | null = null;
-  
+
 
   if (userId) {
     const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
     const apiKey = process.env.BACKEND_INTERNAL_API_KEY ?? "";
     const headers: Record<string, string> = {};
-    
+
     if (apiKey) headers["X-Internal-API-Key"] = apiKey;
-    
+
     try {
       const [baseRes, resumeRes] = await Promise.all([
         fetch(
@@ -53,10 +53,10 @@ export default async function RootLayout({
   } else {
     initialUserBase = null;
     initialResumes = null;
-  if (typeof window === "undefined") {
-    const { redirect } = await import("next/navigation");
-    redirect("/api/auth/signin");
-  }
+    if (typeof window === "undefined") {
+      const { redirect } = await import("next/navigation");
+      redirect("/api/auth/signin");
+    }
   }
   return (
     <html lang="en">
