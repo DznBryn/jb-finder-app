@@ -79,6 +79,7 @@ export default function CoverLetterEditor({
   const [viewingPreview, setViewingPreview] = useState(false);
   const lastSavedRef = useRef("");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
 
   const loadDocument = async () => {
     if (!sessionId) return;

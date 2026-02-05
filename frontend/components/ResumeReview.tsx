@@ -26,6 +26,7 @@ export default function ResumeReview({
   const [review, setReview] = useState<ResumeReviewResponse | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
 
   useEffect(() => {
     if (!sessionId) return;
