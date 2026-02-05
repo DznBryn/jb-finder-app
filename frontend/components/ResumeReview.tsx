@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useUserBaseStore } from "@/lib/userBaseStore";
 import type { ResumeReviewResponse, ResumeTextResponse } from "../type";
 
 type ResumeReviewProps = {
@@ -74,13 +75,30 @@ export default function ResumeReview({
           job_id: jobId,
         }),
       });
+      if (response.status === 402) {
+        const data = (await response.json().catch(() => ({}))) as {
+          detail?: { required?: number; available?: number };
+          required?: number;
+          available?: number;
+        };
+        const detail = data.detail ?? data;
+        const { useCheckoutModalStore } = await import(
+          "@/lib/checkoutModalStore"
+        );
+        useCheckoutModalStore.getState().openFor402(detail);
+        throw new Error("PAYMENT_REQUIRED");
+      }
       if (!response.ok) {
         const detail = await response.text();
         throw new Error(detail || "Resume review failed.");
       }
       const data = (await response.json()) as ResumeReviewResponse;
       setReview(data);
+      hydrateUserBase();
     } catch (error) {
+      if (error instanceof Error && error.message === "PAYMENT_REQUIRED") {
+        return;
+      }
       setReviewError(
         error instanceof Error ? error.message : "Resume review failed."
       );

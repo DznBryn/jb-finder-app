@@ -17,8 +17,8 @@ def analyze_selected_jobs(
     db: Session,
     session: ResumeSessionRecord,
     job_ids: List[str],
-) -> Dict[str, object]:
-    """Analyze selected jobs and return LLM grades."""
+) -> tuple[Dict[str, object], int]:
+    """Analyze selected jobs and return LLM grades. Returns (result, total_tokens)."""
 
     int_ids = []
     for job_id in job_ids:
@@ -28,7 +28,7 @@ def analyze_selected_jobs(
             continue
 
     if not int_ids:
-        return {"results": [], "best_match_job_id": None}
+        return {"results": [], "best_match_job_id": None}, 0
 
     jobs = (
         db.query(JobListing)
@@ -50,13 +50,15 @@ def analyze_selected_jobs(
     job_payload = []
     missing_skills_map: Dict[str, List[str]] = {}
     job_skills_map: Dict[str, List[str]] = {}
+    skill_extract_tokens = 0
     user_skills = [
         skill.lower()
         for skill in session.extracted_skills or []
         if isinstance(skill, str)
     ]
     for job in ordered_jobs:
-        job_skills = extract_job_skills(job.description or "")
+        job_skills, tokens = extract_job_skills(job.description or "")
+        skill_extract_tokens += tokens
         missing_skills = [
             skill for skill in job_skills if skill and skill not in user_skills
         ]
@@ -75,7 +77,8 @@ def analyze_selected_jobs(
             }
         )
 
-    analysis = analyze_job_matches(profile, job_payload)
+    analysis, match_tokens = analyze_job_matches(profile, job_payload)
+    total_tokens = skill_extract_tokens + match_tokens
     results = {item.get("job_id"): item for item in analysis.get("results", [])}
 
     grade_order = ["A", "B", "C", "D"]
@@ -143,7 +146,7 @@ def analyze_selected_jobs(
     return {
         "results": normalized,
         "best_match_job_id": best_match_job_id,
-    }
+    }, total_tokens
 
 
 def deep_analyze_job(
@@ -153,9 +156,9 @@ def deep_analyze_job(
 
     cached = get_deep_analysis(db, session.id, job_id)
     if cached:
-        return cached
+        return cached, 0
 
-    analysis = analyze_selected_jobs(db, session, [job_id])
+    analysis, match_tokens = analyze_selected_jobs(db, session, [job_id])
     result = (analysis.get("results") or [{}])[0]
 
     try:
@@ -178,11 +181,12 @@ def deep_analyze_job(
         "description": job.description or "",
     }
 
-    learning_resources = generate_learning_resources(
+    learning_resources, resources_tokens = generate_learning_resources(
         profile,
         job_payload,
         result.get("missing_skills", []),
     )
+    total_tokens = match_tokens + resources_tokens
 
     payload = {
         **result,
@@ -191,16 +195,30 @@ def deep_analyze_job(
     payload["session_id"] = session.id
     payload["job_id"] = job_id
 
-    record = DeepAnalysisRecord(
-        session_id=session.id,
-        job_id=str(job_id),
-        payload=payload,
-        created_at=datetime.utcnow(),
+    existing = (
+        db.query(DeepAnalysisRecord)
+        .filter(
+            DeepAnalysisRecord.session_id == session.id,
+            DeepAnalysisRecord.job_id == str(job_id),
+        )
+        .first()
     )
-    db.add(record)
-    db.commit()
+    if existing:
+        existing.user_id = getattr(session, "user_id", None)
+        existing.payload = {**existing.payload, **payload}
+        db.commit()
+    else:
+        record = DeepAnalysisRecord(
+            session_id=session.id,
+            user_id=getattr(session, "user_id", None),
+            job_id=str(job_id),
+            payload=payload,
+            created_at=datetime.utcnow(),
+        )
+        db.add(record)
+        db.commit()
 
-    return payload
+    return payload, total_tokens
 
 
 def get_deep_analysis(
@@ -219,3 +237,51 @@ def get_deep_analysis(
     if not record:
         return None
     return record.payload
+
+
+def persist_match_analyses(
+    db: Session,
+    session_id: str,
+    user_id: str,
+    results: List[Dict[str, object]],
+) -> None:
+    """Persist match analysis results (grade, rationale, missing_skills) so they are linked to user and session."""
+
+    for item in results:
+        job_id = item.get("job_id")
+        if not job_id:
+            continue
+        job_id = str(job_id)
+        payload = {
+            "grade": item.get("grade", "D"),
+            "rationale": item.get("rationale", ""),
+            "missing_skills": item.get("missing_skills", []),
+            "learning_resources": [],
+        }
+        existing = (
+            db.query(DeepAnalysisRecord)
+            .filter(
+                DeepAnalysisRecord.session_id == str(session_id),
+                DeepAnalysisRecord.job_id == job_id,
+            )
+            .first()
+        )
+        if existing:
+            existing.user_id = user_id
+            existing.payload = {
+                **existing.payload,
+                "grade": payload["grade"],
+                "rationale": payload["rationale"],
+                "missing_skills": payload["missing_skills"],
+            }
+            db.commit()
+        else:
+            record = DeepAnalysisRecord(
+                session_id=str(session_id),
+                user_id=user_id,
+                job_id=job_id,
+                payload=payload,
+                created_at=datetime.utcnow(),
+            )
+            db.add(record)
+            db.commit()

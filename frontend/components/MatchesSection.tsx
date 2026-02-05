@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import type React from "react";
+import { useMemo } from "react";
+import { useSession as useAuthSession } from "next-auth/react";
 import {
   Pagination,
   PaginationContent,
@@ -12,27 +14,15 @@ import {
   PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { Progress } from "@/components/ui/progress";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 
 import { useSession } from "../app/session-context";
-import CoverLetterEditor from "./CoverLetterEditor";
-import ResumeReviewSkeleton from "./skeletons/ResumeReviewSkeleton";
-import type { MatchesSectionProps } from "@/type";
+import { useUserResumeStore } from "@/lib/userResumeStore";
+import type { MatchFilters, MatchesSectionProps, UserResumeAnalysis } from "@/type";
 import { INDUSTRY_OPTIONS } from "@/type";
-import { ButtonGroup } from "./ui/button-group";
 import { Button } from "./ui/button";
 import Link from "next/link";
+import MatchesSkeleton from "./skeletons/MatchesSkeleton";
 
-const ResumeReview = dynamic(() => import("./ResumeReview"), {
-  loading: () => <ResumeReviewSkeleton />,
-});
 
 function getLocationBadge(label: string) {
   const normalized = label.toLowerCase();
@@ -109,19 +99,83 @@ export default function MatchesSection({
   onToggleJobSelection,
 }: MatchesSectionProps) {
   const { sessionProfile } = useSession();
+  const { status } = useAuthSession();
+  const resumes = useUserResumeStore((state) => state.resumes);
+
+  const storeAnalysis = useMemo(() => {
+    const results: Record<string, UserResumeAnalysis> = {};
+    const details: Record<
+      string,
+      { job_id: string; title: string; company: string; location: string; apply_url: string }
+    > = {};
+    const ids: string[] = [];
+    resumes.forEach((resume) => {
+      (resume.analyzed_jobs ?? []).forEach((job) => {
+        if (!results[job.job_id]) {
+          results[job.job_id] = job;
+          ids.push(job.job_id);
+        }
+        if (job.title != null || job.company != null) {
+          if (!details[job.job_id]) {
+            details[job.job_id] = {
+              job_id: job.job_id,
+              title: job.title ?? "",
+              company: job.company ?? "",
+              location: job.location ?? "",
+              apply_url: job.apply_url ?? "",
+            };
+          }
+        }
+      });
+      (resume.saved_jobs ?? []).forEach((job) => {
+        if (!details[job.job_id]) {
+          details[job.job_id] = {
+            job_id: job.job_id,
+            title: job.title,
+            company: job.company,
+            location: job.location,
+            apply_url: job.apply_url,
+          };
+        }
+      });
+    });
+
+    return {
+      results: Object.values(results).length ? results : {},
+      details: Object.values(details).length ? details : {},
+      ids: Object.values(ids).length ? ids : []
+    };
+  }, [resumes]);
+
+  const useStoreAnalysis = status === "authenticated" && resumes.length > 0;
+  // Merge session analysis (current page) on top of store so "Analyze selections" results show immediately
+  const displayAnalysisResults = useStoreAnalysis
+    ? { ...storeAnalysis.results, ...analysisResults }
+    : analysisResults;
+  const displayAnalyzedJobIds = useStoreAnalysis
+    ? [...new Set([...storeAnalysis.ids, ...analyzedJobIds])]
+    : analyzedJobIds;
+  const displayAnalyzedJobDetails = useStoreAnalysis
+    ? { ...storeAnalysis.details, ...analyzedJobDetails }
+    : analyzedJobDetails;
   const normalizedTitle = filterTitleTerms.trim().toLowerCase();
   const selectedTitle =
     titleOptions.find((option) => option.title.trim().toLowerCase() === normalizedTitle)
       ?.title ?? "";
+
   if (!hasLoadedMatches) {
-    const analyzedEntries = Object.values(analyzedJobDetails).sort((a, b) => {
+    if (loadingMatches) {
+      return <MatchesSkeleton />;
+    }
+    const analyzedEntries = Object.values(displayAnalyzedJobDetails).sort((a, b) => {
       const gradeOrder = ["A", "B", "C", "D"];
-      const aGrade = (analysisResults[a.job_id]?.grade ?? "D").toUpperCase();
-      const bGrade = (analysisResults[b.job_id]?.grade ?? "D").toUpperCase();
+      const aGrade = (displayAnalysisResults[a.job_id]?.grade ?? "D").toUpperCase();
+      const bGrade = (displayAnalysisResults[b.job_id]?.grade ?? "D").toUpperCase();
       return gradeOrder.indexOf(aGrade) - gradeOrder.indexOf(bGrade);
     });
+   
     return (
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 w-full max-w-full">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Top matches</h3>
@@ -132,7 +186,20 @@ export default function MatchesSection({
           <button
             className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
-            onClick={() => onFetchMatches(1, activeFilters)}
+            onClick={() => {
+              const titleTerms = filterTitleTerms
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean);
+              const currentFilters: MatchFilters = {
+                title_terms: titleTerms,
+                location_pref: filterLocation || null,
+                work_mode: filterWorkMode || null,
+                pay_range: filterPayRange || null,
+                industry: filterIndustry === "all" ? null : filterIndustry,
+              };
+              onFetchMatches(1, currentFilters);
+            }}
             disabled={loadingMatches}
           >
             {loadingMatches ? "Loading..." : "Load matches"}
@@ -152,7 +219,7 @@ export default function MatchesSection({
             </p>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {analyzedEntries.map((detail) => {
-                const result = analysisResults[detail.job_id] ?? null;
+                const result = displayAnalysisResults[detail.job_id] ?? null;
                 return (
                   <div
                     key={`analysis-${detail.job_id}`}
@@ -228,9 +295,8 @@ export default function MatchesSection({
     }
     return pages;
   };
-
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 w-full max-w-full">
       {matchesError ? (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
           {matchesError}
@@ -314,7 +380,6 @@ export default function MatchesSection({
                   <option value="either">Any</option>
                   <option value="remote">Remote</option>
                   <option value="hybrid">Hybrid</option>
-                  <option value="in_office">In-office</option>
                 </select>
               </div>
               <div>
@@ -326,10 +391,9 @@ export default function MatchesSection({
                 >
                   <option value="any">Any</option>
                   <option value="with">Only with pay range</option>
-                  <option value="without">Only without pay range</option>
                 </select>
               </div>
-              <div>
+              {/* <div>
                 <label className="text-xs text-slate-400">Industry</label>
                 <select
                   className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
@@ -342,7 +406,7 @@ export default function MatchesSection({
                     </option>
                   ))}
                 </select>
-              </div>
+              </div> */}
             </div>
           </div>
 
@@ -478,14 +542,14 @@ export default function MatchesSection({
                             {match.company}
                           </p>
                         </div>
-                        {analysisResults[match.job_id] ? (
+                        {displayAnalysisResults[match.job_id] ? (
                           <div className="flex flex-col items-end gap-1 text-right min-w-24">
                             <span
                               className={`rounded-full border px-3 py-1 text-xs font-semibold ${getGradeBadgeClasses(
-                                analysisResults[match.job_id]?.grade ?? "D"
+                                displayAnalysisResults[match.job_id]?.grade ?? "D"
                               )}`}
                             >
-                              Grade {analysisResults[match.job_id]?.grade ?? "D"}
+                              Grade {displayAnalysisResults[match.job_id]?.grade ?? "D"}
                             </span>
                             {analysisBest === match.job_id ? (
                               <span className="text-[10px] uppercase text-emerald-200">
@@ -506,13 +570,13 @@ export default function MatchesSection({
                         ))}
                       </div>
 
-                      {analysisResults[match.job_id] ? (
+                      {displayAnalysisResults[match.job_id] ? (
                         <div className="mt-3 space-y-2 text-xs text-slate-300">
-                          <p>{analysisResults[match.job_id]?.rationale}</p>
-                          {analysisResults[match.job_id]?.missing_skills?.length ? (
+                          <p>{displayAnalysisResults[match.job_id]?.rationale}</p>
+                          {displayAnalysisResults[match.job_id]?.missing_skills?.length ? (
                             <p className="text-slate-400">
                               Missing skills:{" "}
-                              {analysisResults[match.job_id]?.missing_skills.join(
+                              {(displayAnalysisResults[match.job_id]?.missing_skills ?? []).join(
                                 ", "
                               )}
                             </p>
@@ -566,56 +630,7 @@ export default function MatchesSection({
                         >
                           View job details →
                         </Link>
-                        <ButtonGroup>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 bg-transparent"
-                                variant="outline"
-                              >
-                                Review resume
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent variant="fullscreen">
-                              <DialogHeader>
-                                <DialogTitle>Resume review</DialogTitle>
-                                <DialogDescription>
-                                  Review your resume against this role with targeted improvements.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <ResumeReview
-                                sessionId={sessionProfile?.session_id ?? null}
-                                jobId={match.job_id}
-                                jobTitle={match.title}
-                                companyName={match.company}
-                              />
-                            </DialogContent>
-                          </Dialog>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 bg-transparent"
-                                variant="outline"
-                              >
-                                Cover letter
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent variant="fullscreen">
-                              <DialogHeader>
-                                <DialogTitle>Cover letter editor</DialogTitle>
-                                <DialogDescription>
-                                  Generate, review, and accept AI suggestions before applying.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <CoverLetterEditor
-                                sessionId={sessionProfile?.session_id ?? null}
-                                jobId={match.job_id}
-                                jobTitle={match.title}
-                                companyName={match.company}
-                              />
-                            </DialogContent>
-                          </Dialog>
-                        </ButtonGroup>
+
                       </div>
                     </div>
                   ))}

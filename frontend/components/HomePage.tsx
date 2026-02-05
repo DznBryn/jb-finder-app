@@ -7,6 +7,7 @@ import { useSession } from "../app/session-context";
 import MatchesSkeleton from "./skeletons/MatchesSkeleton";
 import UploadResume from "./UploadResume";
 import SignupPrompt from "./SignupPrompt";
+import { useUserBaseStore } from "@/lib/userBaseStore";
 import type {
   AnalyzeResult,
   AnalyzedJobDetail,
@@ -23,7 +24,7 @@ const MatchesSection = dynamic(() => import("./MatchesSection"), {
 
 export default function HomepageClient() {
   const [uploading, setUploading] = useState(false);
-  const { status: authStatus } = useAuthSession();
+  const { status: authStatus, data: authData } = useAuthSession();
   const {
     sessionProfile,
     setSessionProfile,
@@ -50,6 +51,7 @@ export default function HomepageClient() {
   const [filterWorkMode, setFilterWorkMode] = useState("either");
   const [filterPayRange, setFilterPayRange] = useState("any");
   const [filterIndustry, setFilterIndustry] = useState("all");
+  const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
   const [titleOptions, setTitleOptions] = useState<
     Array<{ title: string; count: number }>
   >([]);
@@ -137,6 +139,10 @@ export default function HomepageClient() {
     if (sessionProfile?.session_id) {
       formData.set("session_id", sessionProfile.session_id);
     }
+    const userId = (authData?.user as { id?: string })?.id;
+    if (userId) {
+      formData.set("user_id", userId);
+    }
 
     try {
       const response = await fetch(`${apiBase}/api/resume/upload`, {
@@ -154,9 +160,9 @@ export default function HomepageClient() {
       setSessionProfile(data);
       const inferredTitles = Array.isArray(data.inferred_titles)
         ? data.inferred_titles
-            .filter((term: string) => typeof term === "string")
-            .map((term: string) => term.trim())
-            .filter(Boolean)
+          .filter((term: string) => typeof term === "string")
+          .map((term: string) => term.trim())
+          .filter(Boolean)
         : [];
       setFilterTitleTerms(inferredTitles.join(", "));
       setLockedTitleTerms(inferredTitles);
@@ -175,7 +181,7 @@ export default function HomepageClient() {
             if (Array.isArray(parsed)) {
               setAnalyzedJobIds(parsed);
             }
-          } catch {}
+          } catch { }
         }
       }
       if (typeof window !== "undefined") {
@@ -189,12 +195,12 @@ export default function HomepageClient() {
         1,
         inferredTitles.length > 0
           ? {
-              title_terms: inferredTitles,
-              location_pref: null,
-              work_mode: null,
-              pay_range: null,
-              industry: null,
-            }
+            title_terms: inferredTitles,
+            location_pref: null,
+            work_mode: null,
+            pay_range: null,
+            industry: null,
+          }
           : null,
         data
       );
@@ -234,7 +240,7 @@ export default function HomepageClient() {
           window.localStorage.setItem(convertKey, "1");
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [authStatus, sessionProfile?.session_id]);
 
   useEffect(() => {
@@ -394,12 +400,12 @@ export default function HomepageClient() {
       activeFilters ??
       (lockedTitleTerms.length > 0
         ? {
-            title_terms: lockedTitleTerms,
-            location_pref: null,
-            work_mode: null,
-            pay_range: null,
-            industry: null,
-          }
+          title_terms: lockedTitleTerms,
+          location_pref: null,
+          work_mode: null,
+          pay_range: null,
+          industry: null,
+        }
         : null);
     const cacheKey = getMatchesCacheKey(sessionProfile.session_id, 1, effectiveFilters);
     const cached = safeStorageGet(cacheKey);
@@ -441,12 +447,12 @@ export default function HomepageClient() {
         activeFilters ??
         (lockedTitleTerms.length > 0
           ? {
-              title_terms: lockedTitleTerms,
-              location_pref: null,
-              work_mode: null,
-              pay_range: null,
-              industry: null,
-            }
+            title_terms: lockedTitleTerms,
+            location_pref: null,
+            work_mode: null,
+            pay_range: null,
+            industry: null,
+          }
           : null);
       const cacheKey = getMatchesCacheKey(
         activeSession.session_id,
@@ -464,13 +470,14 @@ export default function HomepageClient() {
             title_terms?: string[];
           };
           applyMatchesPayload(data);
+          if (filters != null) setActiveFilters(effectiveFilters);
           setLoadingMatches(false);
           return;
         } catch {
           safeStorageRemove(cacheKey);
         }
       }
-
+      console.log(effectiveFilters)
       const response = await fetch(`${apiBase}/api/matches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -493,6 +500,7 @@ export default function HomepageClient() {
       };
       console.log(data);
       applyMatchesPayload(data);
+      if (filters != null) setActiveFilters(effectiveFilters);
       safeStorageSet(cacheKey, JSON.stringify(data));
     } catch (error) {
       setMatchesError(
@@ -608,6 +616,20 @@ export default function HomepageClient() {
           }),
         });
 
+        if (response.status === 402) {
+          const data = (await response.json().catch(() => ({}))) as {
+            detail?: { required?: number; available?: number };
+            required?: number;
+            available?: number;
+          };
+          const detail = data.detail ?? data;
+          const { useCheckoutModalStore } = await import(
+            "@/lib/checkoutModalStore"
+          );
+          useCheckoutModalStore.getState().openFor402(detail);
+          setShowSignupPrompt(true);
+          throw new Error("PAYMENT_REQUIRED");
+        }
         if (!response.ok) {
           const detail = await response.text();
           throw new Error(detail || "Analysis failed.");
@@ -658,6 +680,7 @@ export default function HomepageClient() {
       setAnalyzedJobIds(Array.from(nextAnalyzedIds));
       setAnalyzedJobDetails(nextDetails);
       setAnalysisBest(bestJobId);
+      hydrateUserBase();
 
       if (typeof window !== "undefined") {
         window.localStorage.setItem(
@@ -674,6 +697,9 @@ export default function HomepageClient() {
         );
       }
     } catch (error) {
+      if (error instanceof Error && error.message === "PAYMENT_REQUIRED") {
+        return;
+      }
       setAnalysisError(
         error instanceof Error ? error.message : "Unexpected analysis error."
       );

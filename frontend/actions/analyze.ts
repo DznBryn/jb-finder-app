@@ -22,6 +22,12 @@ export async function analyzeJobs(
     }),
   });
 
+  if (response.status === 402) {
+    const detail = await response.json().catch(() => ({})) as { required?: number; available?: number };
+    throw new Error(
+      JSON.stringify({ code: 'PAYMENT_REQUIRED', required: detail.required, available: detail.available })
+    );
+  }
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || 'Analysis failed.');
@@ -58,6 +64,17 @@ export async function runDeepAnalysis(
     }),
   });
 
+  if (response.status === 402) {
+    const data = await response.json().catch(() => ({})) as {
+      detail?: { required?: number; available?: number };
+      required?: number;
+      available?: number;
+    };
+    const detail = data.detail ?? data;
+    throw new Error(
+      JSON.stringify({ code: 'PAYMENT_REQUIRED', required: detail.required, available: detail.available })
+    );
+  }
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || 'Deep analysis failed.');

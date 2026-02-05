@@ -38,6 +38,18 @@ def _log_usage(response: object, label: str) -> None:
         total_tokens,
     )
 
+
+def _get_total_tokens(response: object) -> int:
+    """Extract total_tokens from OpenAI response for credit settlement."""
+    usage = getattr(response, "usage", None)
+    if not usage:
+        return 0
+    if isinstance(usage, dict):
+        total = usage.get("total_tokens")
+    else:
+        total = getattr(usage, "total_tokens", None)
+    return int(total) if total is not None else 0
+
 class ResumeParseResult(BaseModel):
     """Structured resume fields returned by the LLM."""
 
@@ -312,11 +324,11 @@ def _call_openai(resume_text: str) -> Dict[str, object]:
     return json.loads(output_text)
 
 
-def extract_job_skills(job_text: str) -> List[str]:
-    """Extract a skill list from a job description using the LLM."""
+def extract_job_skills(job_text: str) -> tuple[List[str], int]:
+    """Extract a skill list from a job description using the LLM. Returns (skills, total_tokens)."""
 
     if not OPENAI_API_KEY or not job_text.strip():
-        return []
+        return [], 0
 
     client = OpenAI(api_key=OPENAI_API_KEY)
     system_prompt = (
@@ -338,10 +350,11 @@ def extract_job_skills(job_text: str) -> List[str]:
         parsed = json.loads(response.output_text)
         validated = JobSkillsResult(**parsed)
         logger.info("LLM skill extract success: skills=%s", len(validated.skills))
-        return [skill.lower() for skill in validated.skills if isinstance(skill, str)]
+        skills = [skill.lower() for skill in validated.skills if isinstance(skill, str)]
+        return skills, _get_total_tokens(response)
     except (json.JSONDecodeError, ValidationError, Exception):
         logger.exception("LLM skill extract failed.")
-        return []
+        return [], 0
 
 def build_search_query(
     titles: List[str],
@@ -459,10 +472,10 @@ def analyze_job_matches(
             len(validated.results),
             validated.best_match_job_id,
         )
-        return validated.model_dump()
+        return validated.model_dump(), _get_total_tokens(response)
     except (json.JSONDecodeError, ValidationError, Exception):
         logger.exception("LLM analyze failed, using fallback.")
-        return _fallback_job_analysis(profile, jobs)
+        return _fallback_job_analysis(profile, jobs), 0
 
 
 def generate_learning_resources(
@@ -473,7 +486,7 @@ def generate_learning_resources(
     """Return learning resources for missing skills."""
 
     if not missing_skills:
-        return []
+        return [], 0
 
     if not OPENAI_API_KEY:
         return [
@@ -484,7 +497,7 @@ def generate_learning_resources(
                 "resources": [],
             }
             for skill in missing_skills
-        ]
+        ], 0
 
     system_prompt = (
         "You are a career coach. Provide concise, high-confidence learning resources "
@@ -542,7 +555,7 @@ def generate_learning_resources(
                 continue
             group["resources"] = (group.get("resources") or [])[:4]
             trimmed.append(group)
-        return trimmed
+        return trimmed, _get_total_tokens(response)
     except (json.JSONDecodeError, ValidationError, Exception):
         logger.exception("LLM deep analysis failed, using fallback.")
         return [
@@ -553,7 +566,7 @@ def generate_learning_resources(
                 "resources": [],
             }
             for skill in missing_skills
-        ]
+        ], 0
 
 
 def review_resume_for_job(resume_text: str, job: Dict[str, object]) -> Dict[str, object]:
@@ -615,7 +628,7 @@ def review_resume_for_job(resume_text: str, job: Dict[str, object]) -> Dict[str,
         _log_usage(response, "resume_review")
         parsed = json.loads(response.output_text)
         validated = ResumeReviewResult(**parsed)
-        return validated.model_dump()
+        return validated.model_dump(), _get_total_tokens(response)
     except (json.JSONDecodeError, ValidationError, Exception):
         logger.exception("LLM resume review failed.")
         return {
@@ -626,7 +639,7 @@ def review_resume_for_job(resume_text: str, job: Dict[str, object]) -> Dict[str,
             "changes": [],
             "rewording": [],
             "vocabulary": [],
-        }
+        }, 0
 
 
 def suggest_cover_letter_edits(
@@ -681,15 +694,14 @@ def suggest_cover_letter_edits(
         _log_usage(response, "cover_letter_suggest")
         parsed = json.loads(response.output_text)
         validated = CoverLetterPatchResult(**parsed)
-
-        return validated.model_dump()
+        return validated.model_dump(), _get_total_tokens(response)
     except (json.JSONDecodeError, ValidationError, Exception):
         logger.exception("LLM cover letter suggest failed.")
         return {
             "ops": [],
             "explanation": "Unable to generate edits at this time.",
             "warnings": ["LLM request failed."],
-        }
+        }, 0
 
 
 def parse_resume_text(resume_text: str) -> Dict[str, object]:

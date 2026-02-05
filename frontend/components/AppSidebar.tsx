@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase, Home, LineChart, ListChecks, UserPlus } from "lucide-react";
+import { Briefcase, Coins, Home, LineChart, ListChecks, UserPlus } from "lucide-react";
 
 import {
   Sidebar,
@@ -20,9 +20,17 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { signOut } from "next-auth/react";
+import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
+import { clearSessionAndStorage } from "@/lib/signOut";
+import { useUserBaseStore } from "@/lib/userBaseStore";
 
 
 export default function AppSidebar() {
+  const wallet = useUserBaseStore((s) => s.userBase?.wallet);
+  const totalCredits =
+    (wallet?.subscription_credits ?? 0) + (wallet?.one_time_credits ?? 0);
+  const openCheckout = useCheckoutModalStore((s) => s.openForCredits);
+
   return (
     <Sidebar collapsible="icon" className="bg-transparent">
       <SidebarHeader className="bg-transparent px-2 py-2">
@@ -113,12 +121,38 @@ export default function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-slate-400">Credits</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <div className="flex flex-col gap-2 px-2 py-1">
+              <div className="flex items-center gap-2 text-slate-200 group-data-[collapsible=icon]:justify-center">
+                <Coins className="h-4 w-4 shrink-0" />
+                <span className="text-sm group-data-[collapsible=icon]:hidden">
+                  {totalCredits} credits
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
+                onClick={openCheckout}
+              >
+                <Coins className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">Buy credits</span>
+              </Button>
+            </div>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="bg-transparent px-2 pb-3">
         <Button
           className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
           variant="outline"
-          onClick={() => signOut({ callbackUrl: "/auth/signin" })}
+          onClick={() => {
+            clearSessionAndStorage();
+            signOut({ callbackUrl: "/auth/signin" });
+          }}
         >
           <UserPlus className="h-4 w-4" />
           <span className="group-data-[collapsible=icon]:hidden">Sign out</span>

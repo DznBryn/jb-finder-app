@@ -1,6 +1,7 @@
 "use client";
 
 import type { UploadResumeProps } from "@/type";
+import { Spinner } from "@/components/ui/spinner";
 
 function normalizePhone(phone: string | null) {
   if (!phone) return null;
@@ -41,11 +42,18 @@ export default function UploadResume({
         </div>
 
         <button
-          className="rounded-lg bg-emerald-500 px-5 py-2 font-medium text-slate-950 disabled:cursor-not-allowed disabled:bg-emerald-500/60"
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2 font-medium text-slate-950 disabled:cursor-not-allowed disabled:bg-emerald-500/60"
           type="submit"
           disabled={uploading}
         >
-          {uploading ? "Uploading..." : "Upload and parse"}
+          {uploading ? (
+            <>
+              <Spinner className="size-4 shrink-0" />
+              <span>Parsing resume…</span>
+            </>
+          ) : (
+            "Upload and parse"
+          )}
         </button>
       </form>
 

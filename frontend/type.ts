@@ -76,6 +76,78 @@ export type DeepAnalyzeResponse = {
   learning_resources: LearningResourceGroup[];
 };
 
+export type UserWallet = {
+  plan: string;
+  subscription_credits: number;
+  one_time_credits: number;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  status?: string | null;
+};
+
+export type UserBaseProfile = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  locale?: string | null;
+};
+
+export type UserBase = {
+  profile: UserBaseProfile;
+  wallet: UserWallet;
+  updated_at?: string | null;
+};
+
+export type UserResumeAnalysis = {
+  job_id: string;
+  grade?: string | null;
+  rationale?: string | null;
+  missing_skills?: string[];
+  learning_resources?: LearningResourceGroup[];
+  /** Job display fields when API enriches analyzed_jobs with job details */
+  title?: string | null;
+  company?: string | null;
+  location?: string | null;
+  apply_url?: string | null;
+};
+
+export type UserResumeCoverLetterVersion = {
+  id: number;
+  job_id: string;
+  content: string;
+  created_at: string;
+  intent?: string | null;
+};
+
+export type UserResumeCoverLetter = {
+  job_id: string;
+  draft_content?: string | null;
+  updated_at?: string | null;
+  versions: UserResumeCoverLetterVersion[];
+};
+
+export type UserResume = {
+  id: string;
+  user_id: string;
+  resume_s3_key?: string | null;
+  resume_content_hash?: string | null;
+  created_at: string;
+  inferred_titles?: string[];
+  extracted_skills?: string[];
+  saved_jobs?: SelectedJob[];
+  analyzed_jobs?: UserResumeAnalysis[];
+  cover_letters?: UserResumeCoverLetter[];
+};
+
+/** Flattened /api/user/resumes response (shared data at top level). */
+export type UserResumesPayload = {
+  resumes: Array<Omit<UserResume, "saved_jobs" | "analyzed_jobs" | "cover_letters">>;
+  saved_jobs: SelectedJob[];
+  analyzed_jobs: UserResumeAnalysis[];
+  cover_letters: UserResumeCoverLetter[];
+};
+
 export type ResumeTextResponse = {
   session_id: string;
   resume_text: string;

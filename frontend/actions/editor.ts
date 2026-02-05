@@ -71,6 +71,17 @@ export async function suggestContent(
     }),
   });
 
+  if (response.status === 402) {
+    const data = await response.json().catch(() => ({})) as {
+      detail?: { required?: number; available?: number };
+      required?: number;
+      available?: number;
+    };
+    const detail = data.detail ?? data;
+    throw new Error(
+      JSON.stringify({ code: 'PAYMENT_REQUIRED', required: detail.required, available: detail.available })
+    );
+  }
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || 'Failed to generate suggestion.');
