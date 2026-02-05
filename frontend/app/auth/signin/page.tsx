@@ -93,7 +93,7 @@ function SignInContent() {
           onClick={handleSignOut}
           disabled={!hasSession}
         >
-          Sign out and clear session
+          Sign out 
         </Button>
         <p className="text-center text-xs text-muted-foreground">
           Use this if you signed in with a different account and want to try again.
