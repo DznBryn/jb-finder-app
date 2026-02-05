@@ -50,14 +50,8 @@ export default async function RootLayout({
     } catch {
       // Ignore server-side fetch errors; client hydration will retry.
     }
-  } else {
-    initialUserBase = null;
-    initialResumes = null;
-    if (typeof window === "undefined") {
-      const { redirect } = await import("next/navigation");
-      redirect("/api/auth/signin");
-    }
   }
+
   return (
     <html lang="en">
       <body className="w-full h-full">
