@@ -1,5 +1,4 @@
 import AuthLayout from "@/components/AuthLayout";
-import Footer from "@/components/Footer";
 import "../styles/globals.css";
 import Providers from "./providers";
 import { getServerSession } from "next-auth/next";
@@ -49,14 +48,14 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className="w-full min-h-svh flex flex-col">
+      <body className="min-h-svh w-full flex flex-col">
         <Providers>
-            <AuthLayout
-              initialUserBase={initialUserBase}
-              initialResumes={initialResumes}
-            >
-              {children}
-            </AuthLayout>
+          <AuthLayout
+            initialUserBase={initialUserBase}
+            initialResumes={initialResumes}
+          >
+            {children}
+          </AuthLayout>
         </Providers>
       </body>
     </html>
