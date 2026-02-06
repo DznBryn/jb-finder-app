@@ -59,7 +59,6 @@ export default function CoverLetterEditor({
   jobTitle,
   companyName,
 }: CoverLetterEditorProps) {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingVersion, setSavingVersion] = useState(false);
@@ -87,7 +86,7 @@ export default function CoverLetterEditor({
     setError(null);
     try {
       const response = await fetch(
-        `${apiBase}/api/editor/document?session_id=${sessionId}&job_id=${jobId}`
+        `/api/editor/document?session_id=${sessionId}&job_id=${jobId}`
       );
       if (!response.ok) {
         const detail = await response.text();
@@ -124,7 +123,7 @@ export default function CoverLetterEditor({
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
       try {
-        const response = await fetch(`${apiBase}/api/editor/draft`, {
+        const response = await fetch("/api/editor/draft", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -152,7 +151,7 @@ export default function CoverLetterEditor({
         clearTimeout(saveTimer.current);
       }
     };
-  }, [content, sessionId, apiBase, jobId, draftHash, viewingPreview]);
+  }, [content, sessionId, jobId, draftHash, viewingPreview]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -184,7 +183,7 @@ export default function CoverLetterEditor({
     setSuggesting(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/api/editor/suggest`, {
+      const response = await fetch("/api/editor/suggest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -234,7 +233,7 @@ export default function CoverLetterEditor({
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/api/editor/version`, {
+      const response = await fetch("/api/editor/version", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -267,7 +266,7 @@ export default function CoverLetterEditor({
     setSavingVersion(true);
     setError(null);
     try {
-      const response = await fetch(`${apiBase}/api/editor/version`, {
+      const response = await fetch("/api/editor/version", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

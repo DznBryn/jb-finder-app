@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { normalizeResumesPayload } from "@/lib/resumes";
 import type { UserBase, UserResume, UserResumesPayload } from "@/type";
+import { getBackendHeaders, getBackendUrl } from "@/lib/backendClient";
 
 export const metadata = {
   title: "hyreme.io (hire me)",
@@ -23,20 +24,15 @@ export default async function RootLayout({
 
 
   if (userId) {
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-    const apiKey = process.env.BACKEND_INTERNAL_API_KEY ?? "";
-    const headers: Record<string, string> = {};
-
-    if (apiKey) headers["X-Internal-API-Key"] = apiKey;
-
+    const headers = getBackendHeaders(false);
     try {
       const [baseRes, resumeRes] = await Promise.all([
         fetch(
-          `${apiBase}/api/user/base?user_id=${encodeURIComponent(userId)}`,
+          `${getBackendUrl("/api/user/base")}?user_id=${encodeURIComponent(userId)}`,
           { headers, cache: "no-store" }
         ),
         fetch(
-          `${apiBase}/api/user/resumes?user_id=${encodeURIComponent(userId)}`,
+          `${getBackendUrl("/api/user/resumes")}?user_id=${encodeURIComponent(userId)}`,
           { headers, cache: "no-store" }
         ),
       ]);
@@ -47,14 +43,12 @@ export default async function RootLayout({
         const data = (await resumeRes.json()) as UserResumesPayload;
         initialResumes = normalizeResumesPayload(data);
       }
-    } catch {
-      // Ignore server-side fetch errors; client hydration will retry.
-    }
+    } catch {}
   }
 
   return (
     <html lang="en">
-      <body className="w-full h-full">
+      <body className="w-full h-auto">
         <Providers>
           <AuthLayout
             initialUserBase={initialUserBase}

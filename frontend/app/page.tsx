@@ -1,7 +1,4 @@
-import { authOptions } from "@/lib/auth";
 import HomepageClient from "../components/HomePage";
-import { getServerSession } from "next-auth/next";
-import { redirect } from "next/navigation";
 
 function FeatureCard({
   title,

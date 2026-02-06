@@ -4,15 +4,15 @@ import type {
   CoverLetterDocumentResponse,
   CoverLetterSuggestResponse,
 } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders } from '../lib/backendClient';
 
 export async function loadDocument(
   sessionId: string,
   jobId: string
 ): Promise<CoverLetterDocumentResponse> {
   const response = await fetch(
-    `${apiBase}/api/editor/document?session_id=${sessionId}&job_id=${jobId}`
+    `${getBackendUrl('/api/editor/document')}?session_id=${sessionId}&job_id=${jobId}`,
+    { headers: getBackendHeaders(false) }
   );
 
   if (!response.ok) {
@@ -33,9 +33,9 @@ export async function saveDraft(
   content: string,
   baseHash: string | null
 ): Promise<SaveDraftResponse> {
-  const response = await fetch(`${apiBase}/api/editor/draft`, {
+  const response = await fetch(getBackendUrl('/api/editor/draft'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,
@@ -59,9 +59,9 @@ export async function suggestContent(
   intent: string,
   baseHash: string | null
 ): Promise<CoverLetterSuggestResponse> {
-  const response = await fetch(`${apiBase}/api/editor/suggest`, {
+  const response = await fetch(getBackendUrl('/api/editor/suggest'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,
@@ -97,9 +97,9 @@ export async function saveVersion(
   intent: string,
   baseHash: string | null
 ): Promise<void> {
-  const response = await fetch(`${apiBase}/api/editor/version`, {
+  const response = await fetch(getBackendUrl('/api/editor/version'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,

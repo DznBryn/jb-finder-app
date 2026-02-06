@@ -15,13 +15,8 @@ export default function CheckoutCompletePage() {
   );
   const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
 
-  const apiBase =
-    typeof window !== "undefined"
-      ? process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000"
-      : "";
-
   useEffect(() => {
-    if (!sessionId || !apiBase) {
+    if (!sessionId) {
       setStatus("error");
       return;
     }
@@ -31,7 +26,7 @@ export default function CheckoutCompletePage() {
     (async () => {
       try {
         const res = await fetch(
-          `${apiBase}/api/checkout/status?session_id=${encodeURIComponent(sessionId)}`
+          `/api/checkout/status?session_id=${encodeURIComponent(sessionId)}`
         );
         if (cancelled) return;
         if (!res.ok) {
@@ -57,7 +52,7 @@ export default function CheckoutCompletePage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId, apiBase, hydrateUserBase]);
+  }, [sessionId, hydrateUserBase]);
 
   useEffect(() => {
     if (status !== "success") return;

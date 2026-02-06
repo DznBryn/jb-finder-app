@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.config import LLM_SKILL_EXTRACT_MAX_WORKERS
 from app.models.db_models import DeepAnalysisRecord, JobListing, ResumeSessionRecord
 from app.services.llm_service import (
     analyze_job_matches,
@@ -47,17 +49,26 @@ def analyze_selected_jobs(
         "skills": session.extracted_skills or [],
     }
 
-    job_payload = []
-    missing_skills_map: Dict[str, List[str]] = {}
-    job_skills_map: Dict[str, List[str]] = {}
-    skill_extract_tokens = 0
     user_skills = [
         skill.lower()
         for skill in session.extracted_skills or []
         if isinstance(skill, str)
     ]
-    for job in ordered_jobs:
-        job_skills, tokens = extract_job_skills(job.description or "")
+
+    # Run skill extraction in parallel (I/O-bound LLM calls) to reduce latency.
+    def _extract_for_job(job: JobListing) -> tuple[List[str], int]:
+        return extract_job_skills(job.description or "")
+
+    with ThreadPoolExecutor(max_workers=LLM_SKILL_EXTRACT_MAX_WORKERS) as executor:
+        skill_results = list(
+            executor.map(_extract_for_job, ordered_jobs)
+        )
+
+    job_payload = []
+    missing_skills_map: Dict[str, List[str]] = {}
+    job_skills_map: Dict[str, List[str]] = {}
+    skill_extract_tokens = 0
+    for job, (job_skills, tokens) in zip(ordered_jobs, skill_results):
         skill_extract_tokens += tokens
         missing_skills = [
             skill for skill in job_skills if skill and skill not in user_skills
@@ -65,6 +76,7 @@ def analyze_selected_jobs(
         job_id = str(job.id)
         missing_skills_map[job_id] = missing_skills
         job_skills_map[job_id] = job_skills
+        
         job_payload.append(
             {
                 "job_id": job_id,

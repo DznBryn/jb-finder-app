@@ -1,8 +1,7 @@
 'use server';
 
 import type { MatchFilters, MatchResult } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders } from '../lib/backendClient';
 
 export type FetchMatchesResponse = {
   matches: MatchResult[];
@@ -17,9 +16,9 @@ export async function fetchMatches(
   page: number,
   filters: MatchFilters | null
 ): Promise<FetchMatchesResponse> {
-  const response = await fetch(`${apiBase}/api/matches`, {
+  const response = await fetch(getBackendUrl('/api/matches'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       page,

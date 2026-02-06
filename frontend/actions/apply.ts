@@ -1,17 +1,16 @@
 'use server';
 
 import type { ApplyResult, JobFormState } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders } from '../lib/backendClient';
 
 export async function prepareApply(
   sessionId: string,
   jobId: string,
   coverLetterTone: string
 ): Promise<ApplyResult> {
-  const response = await fetch(`${apiBase}/api/apply/prepare`, {
+  const response = await fetch(getBackendUrl('/api/apply/prepare'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,
@@ -47,9 +46,9 @@ export async function submitApplication({
   dataCompliance,
   demographicAnswers,
 }: SubmitApplicationParams): Promise<void> {
-  const response = await fetch(`${apiBase}/api/greenhouse/apply`, {
+  const response = await fetch(getBackendUrl('/api/greenhouse/apply'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,
