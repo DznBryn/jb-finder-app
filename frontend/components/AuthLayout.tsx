@@ -72,7 +72,7 @@ export default function AuthLayout({
     return (
       <>
         <AppSidebar />
-        <main className="md:ml-42 flex flex-col gap-4 transition-[width,height] ease-linear md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-28 w-full h-full p-4 md:p-6">
+        <main className="md:ml-42 flex flex-col gap-4 transition-[width,height] ease-linear md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-28 w-full h-full px-4">
           {children}
         </main>
         <CheckoutModal
@@ -87,7 +87,7 @@ export default function AuthLayout({
 
   // Not authenticated: full-width layout without sidebar
   return (
-    <main className="min-h-svh w-full p-4 md:p-6">
+    <main className="min-h-svh w-full px-4 md:px-6">
       {children}
     </main>
   );

@@ -237,6 +237,19 @@ class LearningResourceGroup(BaseModel):
     resources: List[LearningResource] = []
 
 
+class JobSummary(BaseModel):
+    """Structured job summary from deep analysis."""
+
+    title: str = ""
+    seniority: Optional[str] = None
+    domain: Optional[str] = None
+    core_responsibilities: List[str] = []
+    must_have_skills: List[str] = []
+    nice_to_have_skills: List[str] = []
+    tools_and_stack: List[str] = []
+    signals: List[str] = []
+
+
 class DeepAnalyzeRequest(BaseModel):
     """Payload to deep analyze a job."""
 
@@ -245,7 +258,7 @@ class DeepAnalyzeRequest(BaseModel):
 
 
 class DeepAnalyzeResponse(BaseModel):
-    """Deep analysis response with learning resources."""
+    """Deep analysis response with learning resources and job summary."""
 
     session_id: UUID
     job_id: str
@@ -253,6 +266,7 @@ class DeepAnalyzeResponse(BaseModel):
     rationale: str
     missing_skills: List[str] = []
     learning_resources: List[LearningResourceGroup] = []
+    job_summary: Optional[JobSummary] = None
 
 
 class ResumeTextResponse(BaseModel):

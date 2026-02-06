@@ -7,7 +7,7 @@ import { normalizeResumesPayload } from "@/lib/resumes";
 import type { UserBase, UserResume, UserResumesPayload } from "@/type";
 
 export const metadata = {
-  title: "Job Finder",
+  title: "hyreme.io (hire me)",
   description: "Upload a resume, get matched, and apply faster.",
 };
 

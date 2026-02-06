@@ -18,6 +18,8 @@ import type {
   SessionProfile,
 } from "@/type";
 
+import LandingHero from "./LandingHero";
+
 const MatchesSection = dynamic(() => import("./MatchesSection"), {
   loading: () => <MatchesSkeleton />,
 });
@@ -778,6 +780,10 @@ export default function HomepageClient() {
     onPrepareApply: handlePrepareApply,
   };
 
+  const showMatchesSection = !!sessionProfile;
+  const showMatchesLoading =
+    showMatchesSection && loadingMatches && !hasLoadedMatches;
+
   return (
     <>
       <SignupPrompt
@@ -786,13 +792,23 @@ export default function HomepageClient() {
         onGoogle={() => signIn("google", { redirectTo: "/" })}
         onLinkedIn={() => signIn("linkedin", { redirectTo: "/" })}
       />
-      <UploadResume
-        uploading={uploading}
-        errorMessage={errorMessage}
-        sessionProfile={sessionProfile}
-        onUpload={handleUpload}
-      />
-      <MatchesSection {...matchGridProps} />
+      <div className="landing-page">
+        <div
+          className={`mx-auto flex min-h-screen flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-6'} px-6 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
+        >
+          {!showMatchesSection  && <LandingHero />}
+          <UploadResume
+            uploading={uploading}
+            errorMessage={errorMessage}
+            sessionProfile={sessionProfile}
+            onUpload={handleUpload}
+            variant={!showMatchesSection ? "landing" : "default"}
+          />
+
+          {showMatchesLoading && <MatchesSkeleton variant="landing" />}
+          {showMatchesSection && !showMatchesLoading && (<MatchesSection {...matchGridProps} />)}
+        </div>
+      </div>
     </>
   );
 }

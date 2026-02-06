@@ -181,7 +181,7 @@ def deep_analyze_job(
         "description": job.description or "",
     }
 
-    learning_resources, resources_tokens = generate_learning_resources(
+    job_summary, learning_resources, resources_tokens = generate_learning_resources(
         profile,
         job_payload,
         result.get("missing_skills", []),
@@ -192,6 +192,8 @@ def deep_analyze_job(
         **result,
         "learning_resources": learning_resources,
     }
+    if job_summary is not None:
+        payload["job_summary"] = job_summary
     payload["session_id"] = session.id
     payload["job_id"] = job_id
 
@@ -239,7 +241,7 @@ def get_deep_analysis(
     return record.payload
 
 
-def persist_match_analyses(
+def persist_match_analysis(
     db: Session,
     session_id: str,
     user_id: str,

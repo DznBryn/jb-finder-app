@@ -67,6 +67,17 @@ export type LearningResourceGroup = {
   resources: LearningResource[];
 };
 
+export type JobSummary = {
+  title: string;
+  seniority?: string | null;
+  domain?: string | null;
+  core_responsibilities: string[];
+  must_have_skills: string[];
+  nice_to_have_skills: string[];
+  tools_and_stack: string[];
+  signals: string[];
+};
+
 export type DeepAnalyzeResponse = {
   session_id: string;
   job_id: string;
@@ -74,6 +85,7 @@ export type DeepAnalyzeResponse = {
   rationale: string;
   missing_skills: string[];
   learning_resources: LearningResourceGroup[];
+  job_summary?: JobSummary | null;
 };
 
 export type UserWallet = {
@@ -105,6 +117,7 @@ export type UserResumeAnalysis = {
   rationale?: string | null;
   missing_skills?: string[];
   learning_resources?: LearningResourceGroup[];
+  job_summary?: JobSummary | null;
   /** Job display fields when API enriches analyzed_jobs with job details */
   title?: string | null;
   company?: string | null;
@@ -287,6 +300,7 @@ export type UploadResumeProps = {
   errorMessage: string | null;
   sessionProfile: SessionProfile | null;
   onUpload: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  variant?: "default" | "landing";
 };
 
 export type MatchesSectionProps = {

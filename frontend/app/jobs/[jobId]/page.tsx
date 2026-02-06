@@ -12,7 +12,7 @@ export default async function JobDetailsPage({
 }) {
   const { jobId } = await params;
   return (
-    <main className="space-y-8">
+    <main className="py-2 md:py-8">
       <JobDetails jobId={jobId} />
     </main>
   );
