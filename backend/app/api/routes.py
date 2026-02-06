@@ -152,7 +152,9 @@ def upload_resume(
     file_bytes = file.file.read()
     content_hash = hashlib.sha256(file_bytes).hexdigest()
     resume_text = parse_resume_file(file.filename, file_bytes)
-    parsed = parse_resume_text(resume_text, use_fast_model=True)
+    parsed = parse_resume_text(resume_text, use_fast_model=False)
+
+    print(f"Parsed: {resume_text}")
 
     existing = None
     if session_id:

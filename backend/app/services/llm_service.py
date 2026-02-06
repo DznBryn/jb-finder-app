@@ -775,8 +775,8 @@ def parse_resume_text(resume_text: str, use_fast_model: bool = False) -> Dict[st
         }
 
     try:
-        logger.info("LLM parse start: model=%s chars=%s", parse_model, len(resume_text))
-        parsed = _call_openai(resume_text, model=parse_model)
+        logger.info("LLM parse start: model=%s chars=%s", OPENAI_MODEL, len(resume_text))
+        parsed = _call_openai(resume_text, model=OPENAI_MODEL)
         validated = ResumeParseResult(**parsed)
         warnings = _safety_checks(validated, resume_text)
         logger.info(
