@@ -108,6 +108,12 @@ from pprint import pprint
 router = APIRouter()
 
 
+@router.get("/api/health")
+def health() -> Dict[str, str]:
+    """Health check for Railway, load balancers, and monitoring. No auth required."""
+    return {"status": "ok"}
+
+
 def _auth_users_table() -> str:
     return "users" if AUTH_SCHEMA == "public" else f'"{AUTH_SCHEMA}".users'
 
