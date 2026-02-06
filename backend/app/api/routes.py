@@ -713,7 +713,9 @@ def analyze_deep(
     cached = get_deep_analysis(db, str(payload.session_id), payload.job_id)
     
     if cached:
-        return DeepAnalyzeResponse(**cached)
+        # Cache payload may omit session_id/job_id (e.g. from persist_match_analysis)
+        out = {**cached, "session_id": payload.session_id, "job_id": payload.job_id}
+        return DeepAnalyzeResponse(**out)
 
     try:
         result, total_tokens = deep_analyze_job(db, session, payload.job_id)
@@ -750,7 +752,9 @@ def get_deep_analyze(
     if not cached:
         raise HTTPException(status_code=404, detail="Deep analysis not found.")
 
-    return DeepAnalyzeResponse(**cached)
+    # Cache payload may omit session_id/job_id (e.g. from persist_match_analysis)
+    out = {**cached, "session_id": session_id, "job_id": job_id}
+    return DeepAnalyzeResponse(**out)
 
 
 @router.post("/api/resume/review", response_model=ResumeReviewResponse)
