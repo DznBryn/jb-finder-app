@@ -9,6 +9,7 @@ import { useUserResumeStore } from "@/lib/userResumeStore";
 import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
 import { CheckoutModal } from "./CheckoutModal";
 import { Spinner } from "./ui/spinner";
+import Footer from "./Footer";
 
 export default function AuthLayout({
   children,
@@ -61,11 +62,12 @@ export default function AuthLayout({
   // Loading: show minimal layout to avoid hydration mismatch
   if (status === "loading") {
     return (
-      <main className="min-h-svh w-full px-4 md:px-6">
-      <div className="flex flex-col items-center justify-center h-[80vh] w-full gap-4">
+      <main className="min-h-svh w-full flex flex-col px-4 md:px-6">
+      <div className="flex flex-col items-center justify-center h-[70vh] w-full gap-4">
         <Spinner className="size-10 text-slate-500 animate-spin" />
         <span className="text-slate-500 text-base font-medium">Loading resources...</span>
       </div>
+        <Footer />
       </main>
     );
   }
@@ -78,6 +80,7 @@ export default function AuthLayout({
         <AppSidebar />
         <main className="md:ml-42 flex flex-col gap-4 transition-[width,height] ease-linear md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-28 w-full h-full px-4">
           {children}
+          <Footer />
         </main>
         <CheckoutModal
           open={checkoutOpen}
@@ -91,8 +94,9 @@ export default function AuthLayout({
 
   // Not authenticated: full-width layout without sidebar
   return (
-    <main className="min-h-svh w-full px-4 md:px-6">
+    <main className="min-h-svh w-full flex flex-col px-4 md:px-6">
       {children}
+      <Footer />
     </main>
   );
 }

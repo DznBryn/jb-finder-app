@@ -10,7 +10,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <AuthSessionProvider>
       <SessionProvider>
         <SidebarProvider>
-          {children}
+            {children}
         </SidebarProvider>
       </SessionProvider>
     </AuthSessionProvider>

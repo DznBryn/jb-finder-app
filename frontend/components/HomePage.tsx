@@ -791,7 +791,7 @@ export default function HomepageClient() {
       />
       <div className="landing-page">
         <div
-          className={`mx-auto flex min-h-screen flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-6'} px-6 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
+          className={`mx-auto flex min-h-[70vh] flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-6'} px-6 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
         >
           {!showMatchesSection && <LandingHero />}
           <UploadResume

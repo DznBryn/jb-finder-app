@@ -306,8 +306,8 @@ def _safety_checks(parsed: ResumeParseResult, resume_text: str) -> List[str]:
     return warnings
 
 
-def _call_openai(resume_text: str) -> Dict[str, object]:
-    """Call OpenAI and return parsed JSON content."""
+def _call_openai(resume_text: str, model: str | None = None) -> Dict[str, object]:
+    """Call OpenAI and return parsed JSON content. Use model=OPENAI_MODEL_CHEAP for faster uploads."""
 
     client = OpenAI(api_key=OPENAI_API_KEY)
     system_prompt = (
@@ -318,9 +318,10 @@ def _call_openai(resume_text: str) -> Dict[str, object]:
         "email (string or null), phone (string or null), location (string or null), "
         "social_links (array). No extra keys."
     )
+    resolved_model = model or OPENAI_MODEL
 
     response = client.responses.create(
-        model=OPENAI_MODEL,
+        model=resolved_model,
         max_output_tokens=10000,
         input=[
             {"role": "system", "content": system_prompt},
@@ -738,8 +739,12 @@ def suggest_cover_letter_edits(
         }, 0
 
 
-def parse_resume_text(resume_text: str) -> Dict[str, object]:
-    """Parse resume text using OpenAI when available, otherwise fallback."""
+def parse_resume_text(resume_text: str, use_fast_model: bool = False) -> Dict[str, object]:
+    """Parse resume text using OpenAI when available, otherwise fallback.
+
+    use_fast_model=True uses OPENAI_MODEL_CHEAP for lower latency on upload (recommended for production).
+    """
+    parse_model = OPENAI_MODEL_CHEAP if use_fast_model else OPENAI_MODEL
 
     if not resume_text.strip():
         return {
@@ -754,7 +759,7 @@ def parse_resume_text(resume_text: str) -> Dict[str, object]:
             "phone": None,
             "location": None,
             "social_links": [],
-            "llm_model": OPENAI_MODEL,
+            "llm_model": parse_model,
             "llm_key_present": bool(OPENAI_API_KEY),
             "warnings": ["Resume text is empty after extraction."],
         }
@@ -764,14 +769,14 @@ def parse_resume_text(resume_text: str) -> Dict[str, object]:
         warnings = []
         return {
             **parsed,
-            "llm_model": OPENAI_MODEL,
+            "llm_model": parse_model,
             "llm_key_present": False,
             "warnings": warnings,
         }
 
     try:
-        logger.info("LLM parse start: model=%s chars=%s", OPENAI_MODEL, len(resume_text))
-        parsed = _call_openai(resume_text)
+        logger.info("LLM parse start: model=%s chars=%s", parse_model, len(resume_text))
+        parsed = _call_openai(resume_text, model=parse_model)
         validated = ResumeParseResult(**parsed)
         warnings = _safety_checks(validated, resume_text)
         logger.info(
@@ -783,7 +788,7 @@ def parse_resume_text(resume_text: str) -> Dict[str, object]:
         )
         return {
             **validated.model_dump(),
-            "llm_model": OPENAI_MODEL,
+            "llm_model": parse_model,
             "llm_key_present": True,
             "warnings": warnings,
         }
@@ -793,7 +798,7 @@ def parse_resume_text(resume_text: str) -> Dict[str, object]:
         warnings = []
         return {
             **parsed,
-            "llm_model": OPENAI_MODEL,
+            "llm_model": parse_model,
             "llm_key_present": True,
             "warnings": warnings,
         }
