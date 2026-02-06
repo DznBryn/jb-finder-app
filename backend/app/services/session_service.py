@@ -34,12 +34,14 @@ def create_session(
     phone: Optional[str],
     location: Optional[str],
     social_links: list,
+    user_id: Optional[str] = None,
 ) -> ResumeSessionRecord:
     """Persist a new session record for the uploaded resume."""
 
     now = _now_utc()
     record = ResumeSessionRecord(
         id=str(uuid4()),
+        user_id=user_id,
         resume_text=resume_text,
         resume_s3_key=resume_s3_key,
         resume_content_hash=resume_content_hash,

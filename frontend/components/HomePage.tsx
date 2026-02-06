@@ -227,21 +227,25 @@ export default function HomepageClient() {
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
-    if (!sessionProfile?.session_id) return;
     if (typeof window === "undefined") return;
-    const convertKey = `session_converted_${sessionProfile.session_id}`;
+    const sessionId = sessionProfile?.session_id;
+    const convertKey = sessionId
+      ? `session_converted_${sessionId}`
+      : "signup_bonus_ensured";
     if (window.localStorage.getItem(convertKey)) return;
     fetch("/api/auth/convert-session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionProfile.session_id }),
+      body: JSON.stringify(
+        sessionId != null ? { session_id: sessionId } : {}
+      ),
     })
       .then((response) => {
         if (response.ok) {
           window.localStorage.setItem(convertKey, "1");
         }
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [authStatus, sessionProfile?.session_id]);
 
   useEffect(() => {

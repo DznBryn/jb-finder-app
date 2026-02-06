@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+
+import { authOptions } from "@/lib/auth";
 import { getBackendUrl, getBackendHeadersForm } from "@/lib/backendClient";
 
 // Allow enough time for backend to process upload (Vercel default is 10s on Hobby).
@@ -7,6 +10,12 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
+    // Ensure backend gets user_id when user is logged in (client may not send it yet).
+    const session = await getServerSession(authOptions as any);
+    const userId = (session as { user?: { id: string } })?.user?.id;
+    if (userId) {
+      formData.set("user_id", userId);
+    }
     const headers = getBackendHeadersForm();
     const url = getBackendUrl("/api/resume/upload");
     const res = await fetch(url, {
