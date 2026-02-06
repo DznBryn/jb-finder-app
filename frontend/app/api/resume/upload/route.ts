@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendUrl, getBackendHeadersForm } from "@/lib/backendClient";
 
+// Allow enough time for backend to process upload (Vercel default is 10s on Hobby).
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -24,7 +27,9 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (err) {
-    console.error("[api/resume/upload]", err);
+    const message = err instanceof Error ? err.message : String(err);
+    const code = err instanceof Error ? (err as NodeJS.ErrnoException).code : undefined;
+    console.error("[api/resume/upload] backend unreachable:", message, code || "", "url:", getBackendUrl("/api/resume/upload"));
     return NextResponse.json(
       { error: "Upload service unavailable. Check API_BASE and backend." },
       { status: 502 }

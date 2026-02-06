@@ -48,7 +48,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className="w-full h-auto">
+      <body className="min-h-svh w-full flex flex-col">
         <Providers>
           <AuthLayout
             initialUserBase={initialUserBase}
