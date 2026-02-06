@@ -339,8 +339,13 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
   }, [jobId, resumes, status]);
 
   const analysisResult = storeResult ?? analysisResults[jobId] ?? null;
+  const hasDeepAnalysisContent =
+    !!deepAnalysis &&
+    (deepAnalysis.job_summary != null ||
+      (deepAnalysis.learning_resources?.length ?? 0) > 0);
   const canAnalyze = !!sessionProfile && !analysisResult && !analyzing;
-  const canDeepAnalyze = !!sessionProfile && !deepAnalyzing && !deepAnalysis;
+  const canDeepAnalyze =
+    !!sessionProfile && !deepAnalyzing && !hasDeepAnalysisContent;
 
   const handleAnalyze = async () => {
     if (!sessionProfile || analysisResult) return;
@@ -718,7 +723,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
           </div>
         ) : null}
 
-        {deepAnalysis ? (
+        {hasDeepAnalysisContent && deepAnalysis ? (
           <div className="w-full h-auto">
             <h3 className="text-sm font-semibold text-white mb-2">
               Deep analysis

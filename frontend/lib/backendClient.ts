@@ -1,6 +1,6 @@
 
 const API_BASE =
-  (process.env.API_BASE || "").trim() ||
+  (process.env.API_BASE || process.env.NEXT_PUBLIC_API_BASE || "").trim() ||
   "http://localhost:8000";
 
 const BACKEND_INTERNAL_API_KEY =
