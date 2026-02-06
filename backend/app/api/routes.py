@@ -195,6 +195,7 @@ def upload_resume(
     else:
         # New upload: create new storage object and session.
         resume_s3_key = save_resume_file(file.filename, file_bytes)
+        effective_uid = (user_id or "").strip() or None
         record = create_session(
             db=db,
             resume_text=resume_text,
@@ -213,6 +214,7 @@ def upload_resume(
             phone=parsed.get("phone"),
             location=parsed.get("location"),
             social_links=parsed.get("social_links", []),
+            user_id=effective_uid,
         )
 
     # Link session to user when signed in so analyses are persisted and linked.
