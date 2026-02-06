@@ -101,6 +101,7 @@ from app.services.cover_letter_service import (
     save_draft,
     save_version,
 )
+from app.services.analysis_service import persist_match_analysis
 from app.rate_limiter import limiter
 from pprint import pprint
 
@@ -683,7 +684,7 @@ def analyze_selections(
         settle_usage(db, user_id, total_tokens, "match_analysis")
     
     if user_id:
-        persist_match_analyses(
+        persist_match_analysis(
             db, str(session.id), user_id, analysis.get("results", [])
         )
     
@@ -731,6 +732,7 @@ def analyze_deep(
         rationale=result.get("rationale", ""),
         missing_skills=result.get("missing_skills", []),
         learning_resources=result.get("learning_resources", []),
+        job_summary=result.get("job_summary"),
     )
 
 
@@ -996,6 +998,7 @@ def user_resumes(
                     "rationale": payload.get("rationale"),
                     "missing_skills": payload.get("missing_skills", []),
                     "learning_resources": payload.get("learning_resources", []),
+                    "job_summary": payload.get("job_summary"),
                     "title": job.title if job else None,
                     "company": job.company_name if job else None,
                     "location": job.location if job else None,

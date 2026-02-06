@@ -120,6 +120,24 @@
   
 }
 
+.landing-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.landing-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.job-details-description {
+  scrollbar-width: thin !important;
+  scrollbar-color: oklch(0.79 0 0 / 35%) transparent !important;
+  
+}
+
 .dark {
   --sidebar: hsl(240 5.9% 10%);
   --sidebar-foreground: hsl(240 4.8% 95.9%);

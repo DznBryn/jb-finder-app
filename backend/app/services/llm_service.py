@@ -115,9 +115,23 @@ class LearningResourceGroup(BaseModel):
     resources: List[LearningResource] = []
 
 
-class DeepLearningResult(BaseModel):
-    """Deep analysis response wrapper."""
+class JobSummary(BaseModel):
+    """Structured job summary from deep analysis prompt."""
 
+    title: str
+    seniority: str | None = None
+    domain: str | None = None
+    core_responsibilities: List[str] = []
+    must_have_skills: List[str] = []
+    nice_to_have_skills: List[str] = []
+    tools_and_stack: List[str] = []
+    signals: List[str] = []
+
+
+class DeepLearningResult(BaseModel):
+    """Deep analysis response wrapper (job_summary + learning_resources)."""
+
+    job_summary: JobSummary
     learning_resources: List[LearningResourceGroup]
 
 
@@ -482,39 +496,66 @@ def generate_learning_resources(
     profile: Dict[str, object],
     job: Dict[str, object],
     missing_skills: List[str],
-) -> List[Dict[str, object]]:
-    """Return learning resources for missing skills."""
+) -> tuple[Dict[str, object] | None, List[Dict[str, object]], int]:
+    """Return (job_summary, learning_resources, tokens) for missing skills."""
+
+    fallback_resources = [
+        {"skill": skill, "category": "characteristic", "relevant": False, "resources": []}
+        for skill in missing_skills
+    ]
 
     if not missing_skills:
-        return [], 0
+        return None, [], 0
 
     if not OPENAI_API_KEY:
-        return [
-            {
-                "skill": skill,
-                "category": "characteristic",
-                "relevant": False,
-                "resources": [],
-            }
-            for skill in missing_skills
-        ], 0
+        return None, fallback_resources, 0
 
     system_prompt = (
-        "You are a career coach. Provide concise, high-confidence learning resources "
-        "for the candidate's missing skills based on the job description. "
-        "Use the web_search tool to find the most relevant resources. "
-        "Return ONLY valid JSON with key: learning_resources (array of {skill, category, "
-        "relevant, summary, resources}). Categories MUST be one of: tool, framework, software, "
-        "characteristic, system. Mark relevant=false for vague or non-actionable items "
-        "(examples: workflow orchestration systems, scalability and reliability engineering). "
-        "Exclude any group where relevant=false. "
-        "For each skill, include a short 'summary' (1-2 sentences) that explains what the skill is "
-        "and why these specific resources were chosen for this job. "
-        "Each resources item is {title, type, url?, notes?}. "
-        "Limit to 3-4 resources per skill. For framework skills (e.g., Ruby on Rails), "
-        "include an official documentation link and a beginner-friendly tutorial/video. "
-        "If unsure about a URL, omit it and provide a short notes and message to the user. "
+        "You are a career coach and job analyst. Analyze the job description and produce "
+        "a structured summary and targeted learning resources. "
+        "Use the web_search tool ONLY to find precise learning resources when needed. "
+        "Return ONLY valid JSON with the following top-level keys:\n"
+        "1) job_summary\n"
+        "2) learning_resources\n\n"
+
+        "JOB_SUMMARY OBJECT (REQUIRED):\n"
+        "{\n"
+        "  title: string,\n"
+        "  seniority: string | null,\n"
+        "  domain: string | null,\n"
+        "  core_responsibilities: string[],\n"
+        "  must_have_skills: string[],\n"
+        "  nice_to_have_skills: string[],\n"
+        "  tools_and_stack: string[],\n"
+        "  signals: string[]\n"
+        "}\n"
+        "- Extract ONLY information explicitly stated or strongly implied by the job description.\n"
+        "- Keep each list concise (3–7 items where possible).\n"
+        "- 'signals' may include items such as: remote, hybrid, on-call, security, scale, "
+        "regulated environment, customer-facing, infra-heavy, data-intensive, etc.\n\n"
+
+        "LEARNING_RESOURCES ARRAY:\n"
+        "Array of objects: {skill, category, relevant, summary, resources}.\n"
+        "Categories MUST be one of: tool, framework, software, system.\n"
+        "Mark relevant=false for vague, non-actionable, or overly broad skills "
+        "(examples: workflow orchestration systems, scalability and reliability engineering).\n"
+        "EXCLUDE any group where relevant=false from the final output.\n\n"
+
+        "For each skill:\n"
+        "- Include a short 'summary' (1–2 sentences) explaining what the skill is AND why "
+        "the selected resources are the best match for THIS specific job.\n"
+        "- LIMIT to a MAXIMUM of 3 resources per skill. Fewer is preferred if sufficient.\n"
+        "- Prioritize resources that match the job’s stated stack, tools, seniority level, "
+        "and real-world usage.\n"
+        "- For framework skills (e.g., Ruby on Rails), include at most ONE official documentation "
+        "link and ONE role-relevant tutorial or video if needed.\n"
+        "- Each resource item is {title, type, url?, notes?}.\n"
+        "- If unsure about a URL, omit it and include a short explanatory note instead.\n\n"
+
+        "The final JSON must exactly match the specified structure. "
+        "Do NOT include commentary, explanations, or markdown."
     )
+
 
     user_prompt = json.dumps(
         {
@@ -548,6 +589,7 @@ def generate_learning_resources(
         _log_usage(response, "deep_analysis_resources")
         parsed = json.loads(response.output_text)
         validated = DeepLearningResult(**parsed)
+        job_summary_dict = validated.job_summary.model_dump()
         resources = validated.model_dump().get("learning_resources", [])
         trimmed = []
         for group in resources:
@@ -555,18 +597,10 @@ def generate_learning_resources(
                 continue
             group["resources"] = (group.get("resources") or [])[:4]
             trimmed.append(group)
-        return trimmed, _get_total_tokens(response)
+        return job_summary_dict, trimmed, _get_total_tokens(response)
     except (json.JSONDecodeError, ValidationError, Exception):
         logger.exception("LLM deep analysis failed, using fallback.")
-        return [
-            {
-                "skill": skill,
-                "category": "characteristic",
-                "relevant": False,
-                "resources": [],
-            }
-            for skill in missing_skills
-        ], 0
+        return None, fallback_resources, 0
 
 
 def review_resume_for_job(resume_text: str, job: Dict[str, object]) -> Dict[str, object]:

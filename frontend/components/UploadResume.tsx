@@ -1,68 +1,85 @@
 "use client";
 
 import type { UploadResumeProps } from "@/type";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
-function normalizePhone(phone: string | null) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, "");
-  return digits.length > 0 ? digits : null;
-}
+const INPUT_ID = "resume-upload";
 
 export default function UploadResume({
   uploading,
   errorMessage,
   sessionProfile,
   onUpload,
+  variant = "default",
 }: UploadResumeProps) {
+  const isLanding = variant === "landing";
+
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-      <h2 className="text-xl font-semibold text-white">Resume upload</h2>
-      <p className="mt-2 text-sm text-slate-300">
-        Upload a PDF or DOCX of your resume
-      </p>
+    <section
+      className={
+        isLanding
+          ? "flex w-full max-w-2xl flex-col items-center gap-4 text-center"
+          : "w-full  rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-3"
+      }
+    >
+      {!isLanding && (
+        <p className=" text-sm text-slate-300">
+          Upload a PDF or DOCX of your resume
+        </p>
+      )}
 
-      <form className="mt-4 space-y-4" onSubmit={onUpload}>
-        <div>
-          <label className="text-sm text-slate-300">Resume file</label>
-          <input
-            name="file"
-            type="file"
-            accept=".pdf,.doc,.docx,.txt"
-            required
-            className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
-          />
-          {sessionProfile?.resume_s3_key ? (
-            <p className="mt-2 text-xs text-slate-400">
-              Stored file:{" "}
-              {sessionProfile.resume_s3_key.split("/").pop() ??
-                sessionProfile.resume_s3_key}
-            </p>
-          ) : null}
-        </div>
+      <form className="w-full space-y-4" onSubmit={onUpload}>
+        <Field>
+          <ButtonGroup className="w-full">
+            <Input
+              id={INPUT_ID}
+              name="file"
+              type="file"
+              accept=".pdf,.doc,.docx,.txt"
+              required
+              className="min-w-24 w-full py-0 min-h-12 file:min-h-12 px-0 overflow-hidden file:mr-2 file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:text-slate-200 file:hover:bg-slate-600"
+            />
+            <Button
+              className="min-h-12 bg-emerald-500 text-slate-950 hover:bg-slate-900 disabled:bg-slate-700"
+              variant="outline" type="submit" disabled={uploading}>
+              {uploading ? (
+                <>
+                  <Spinner className="size-4 shrink-0" />
+                  Parsing…
+                </>
+              ) : isLanding ? (
+                "Upload Resume"
+              ) : (
+                "Upload and parse"
+              )}
+            </Button>
+          </ButtonGroup>
+        </Field>
 
-        <button
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2 font-medium text-slate-950 disabled:cursor-not-allowed disabled:bg-emerald-500/60"
-          type="submit"
-          disabled={uploading}
-        >
-          {uploading ? (
-            <>
-              <Spinner className="size-4 shrink-0" />
-              <span>Parsing resume…</span>
-            </>
-          ) : (
-            "Upload and parse"
-          )}
-        </button>
+        {sessionProfile?.resume_s3_key && !isLanding ? (
+          <p className="text-xs text-slate-400">
+            Stored:{" "}
+            {sessionProfile.resume_s3_key.split("/").pop() ??
+              sessionProfile.resume_s3_key}
+          </p>
+        ) : null}
       </form>
 
       {errorMessage ? (
-        <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
+        <div
+          className={
+            isLanding
+              ? "mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+              : "rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200"
+          }
+        >
           {errorMessage}
         </div>
       ) : null}
-
     </section>
   );
 }

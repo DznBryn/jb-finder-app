@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResumeReviewSkeleton from "./skeletons/ResumeReviewSkeleton";
 import CoverLetterEditorSkeleton from "./skeletons/CoverLetterEditorSkeleton";
 import type {
@@ -24,6 +25,7 @@ import type {
   AnalyzedJobDetail,
   DeepAnalyzeResponse,
   GreenhouseJob,
+  JobSummary,
 } from "@/type";
 
 const ResumeReview = dynamic(() => import("./ResumeReview"), {
@@ -58,6 +60,120 @@ function decodeHtml(content: string) {
   const textarea = document.createElement("textarea");
   textarea.innerHTML = content;
   return textarea.value;
+}
+
+function JobSummaryContent({ jobSummary }: { jobSummary?: JobSummary | null }) {
+  if (!jobSummary) {
+    return (
+      <p className="text-xs text-slate-500 px-2 py-2">
+        No job summary available for this analysis.
+      </p>
+    );
+  }
+  const sections: { label: string; items: string[] }[] = [
+    { label: "Core responsibilities", items: jobSummary.core_responsibilities ?? [] },
+    { label: "Must-have skills", items: jobSummary.must_have_skills ?? [] },
+    { label: "Nice-to-have skills", items: jobSummary.nice_to_have_skills ?? [] },
+    { label: "Tools & stack", items: jobSummary.tools_and_stack ?? [] },
+    { label: "Signals", items: jobSummary.signals ?? [] },
+  ];
+  return (
+    <div className="space-y-4 px-2 py-1">
+      {(jobSummary.title || jobSummary.seniority || jobSummary.domain) ? (
+        <div className="space-y-1">
+          {jobSummary.title ? (
+            <p className="text-sm font-semibold text-white">{jobSummary.title}</p>
+          ) : null}
+          <div className="flex flex-wrap gap-2 text-xs text-slate-400">
+            {jobSummary.seniority ? (
+              <span className="rounded bg-slate-700/60 px-2 py-0.5">{jobSummary.seniority}</span>
+            ) : null}
+            {jobSummary.domain ? (
+              <span className="rounded bg-slate-700/60 px-2 py-0.5">{jobSummary.domain}</span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+      {sections.map(
+        ({ label, items }) =>
+          items.length > 0 && (
+            <div key={label}>
+              <p className="text-xs font-semibold text-slate-300 mb-1.5">{label}</p>
+              <ul className="list-disc list-inside space-y-0.5 text-xs text-slate-400">
+                {items.map((item, i) => (
+                  <li key={`${label}-${i}`}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )
+      )}
+      {sections.every((s) => s.items.length === 0) && !jobSummary.title && !jobSummary.seniority && !jobSummary.domain ? (
+        <p className="text-xs text-slate-500">No structured summary fields available.</p>
+      ) : null}
+    </div>
+  );
+}
+
+function LearningResourcesContent({
+  learningResources,
+}: {
+  learningResources?: DeepAnalyzeResponse["learning_resources"];
+}) {
+  const groups = (learningResources ?? []).filter((g) => g.relevant);
+  if (groups.length === 0) {
+    return (
+      <p className="text-xs text-slate-500 px-2 py-2">
+        No learning resources for this analysis. Run deep analysis to gather resources for missing skills.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {groups.map((group) => (
+        <div
+          key={`resource-${group.skill}`}
+          className="w-full h-auto px-2 py-1 flex flex-col gap-2"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-xs font-semibold text-white">{group.skill}</p>
+            <small className="text-xs text-emerald-300">
+              {group.category.charAt(0).toUpperCase() + group.category.slice(1)}
+            </small>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            {group.summary?.trim().length
+              ? group.summary
+              : "These resources were chosen to help you quickly ramp up on this gap using a mix of official docs and practical walkthroughs relevant to the role."}
+          </p>
+          {group.resources.length > 0 ? (
+            <ul className="mt-2 space-y-2 text-xs text-slate-300 pl-4">
+              {group.resources.slice(0, 4).map((resource) => (
+                <li key={`${group.skill}-${resource.title}`}>
+                  <p className="font-semibold text-slate-100">{resource.title}</p>
+                  <p className="text-slate-400">
+                    {resource.type}
+                    {resource.notes ? ` • ${resource.notes}` : ""}
+                  </p>
+                  {resource.url ? (
+                    <a
+                      className="text-emerald-300"
+                      href={resource.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open resource →
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">No resources returned for this skill.</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function JobDetails({ jobId }: JobDetailsProps) {
@@ -365,8 +481,8 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
   }, [job?.content]);
 
   return (
-    <div className="space-y-6 flex flex-col md:flex-row gap-6 md:px-12">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-8/12">
+    <div className="flex flex-col md:flex-row gap-6">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-7/12">
         <div className="w-full h-auto">
           {loadingJob ? (
             <div className="space-y-3 animate-pulse">
@@ -425,11 +541,11 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
           ) : null}
         </div>
 
-        <div className="w-full h-auto">
+        <div className="w-full h-auto overflow-hidden max-h-[500px] overflow-y-auto bg-slate-950/80 p-4 rounded-md gap-4 flex flex-col job-details-description">
           <h2 className="text-lg font-semibold text-white">Job description</h2>
           {decodedContent ? (
             <div
-              className="prose prose-invert prose-sm mt-3 max-w-none text-slate-300"
+              className="prose prose-invert prose-sm max-w-none text-slate-300"
               dangerouslySetInnerHTML={{ __html: decodedContent }}
             />
           ) : (
@@ -456,7 +572,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
         ) : null}
       </div>
 
-      <div className="h-fit rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-4/12">
+      <div className="h-fit rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-5/12">
         <div className="w-full h-auto">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -595,77 +711,39 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
           ) : null}
         </div>
 
-        {deepAnalyzing && !deepAnalysis?.learning_resources?.length ? (
+        {deepAnalyzing && !deepAnalysis ? (
           <div className="w-full h-auto p-4">
             <div className="flex items-center gap-2 text-xs text-slate-400">
               <Spinner className="size-4 text-slate-600" />
-              <span className="text-slate-600">Deep analyzing… gathering learning resources.</span>
+              <span className="text-slate-600">Deep analyzing… gathering job summary and learning resources.</span>
             </div>
           </div>
         ) : null}
 
-        {deepAnalysis?.learning_resources?.length ? (
+        {deepAnalysis ? (
           <div className="w-full h-auto">
-            <h3 className="text-sm font-semibold text-white">
-              Deep analysis resources
+            <h3 className="text-sm font-semibold text-white mb-2">
+              Deep analysis
             </h3>
-            <p className="mt-1 text-xs text-slate-500">
-              Deep analysis collects learning resources for missing skills so you
-              can close gaps relevant to this role.
+            <p className="text-xs text-slate-500 mb-3">
+              Structured job summary and learning resources for missing skills.
             </p>
-            <div className="mt-3 space-y-3">
-              {deepAnalysis.learning_resources
-                .filter((group) => group.relevant)
-                .map((group) => (
-                  <div
-                    key={`resource-${group.skill}`}
-                    className="w-full h-auto px-2 py-1 flex flex-col gap-2"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-semibold text-white">
-                        {group.skill}
-                      </p>
-                      <small className="text-xs text-emerald-300">
-                        {group.category.charAt(0).toUpperCase() + group.category.slice(1)}
-                      </small>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-400">
-                      {group.summary?.trim().length
-                        ? group.summary
-                        : "These resources were chosen to help you quickly ramp up on this gap using a mix of official docs and practical walkthroughs relevant to the role."}
-                    </p>
-                    {group.resources.length > 0 ? (
-                      <ul className="mt-2 space-y-2 text-xs text-slate-300 pl-4">
-                        {group.resources.slice(0, 4).map((resource) => (
-                          <li key={`${group.skill}-${resource.title}`}>
-                            <p className="font-semibold text-slate-100">
-                              {resource.title}
-                            </p>
-                            <p className="text-slate-400">
-                              {resource.type}
-                              {resource.notes ? ` • ${resource.notes}` : ""}
-                            </p>
-                            {resource.url ? (
-                              <a
-                                className="text-emerald-300"
-                                href={resource.url}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Open resource →
-                              </a>
-                            ) : null}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="mt-2 text-xs text-slate-400">
-                        No resources returned for this skill.
-                      </p>
-                    )}
-                  </div>
-                ))}
-            </div>
+            <Tabs defaultValue="job-summary" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 rounded-lg bg-slate-800/80 p-1">
+                <TabsTrigger value="job-summary" className="rounded-md data-[state=active]:bg-slate-700">
+                  Job summary
+                </TabsTrigger>
+                <TabsTrigger value="learning-resources" className="rounded-md data-[state=active]:bg-slate-700">
+                  Learning resources
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="job-summary" className="mt-3 space-y-3">
+                <JobSummaryContent jobSummary={deepAnalysis.job_summary} />
+              </TabsContent>
+              <TabsContent value="learning-resources" className="mt-3 space-y-3">
+                <LearningResourcesContent learningResources={deepAnalysis.learning_resources} />
+              </TabsContent>
+            </Tabs>
           </div>
         ) : null}
       </div>

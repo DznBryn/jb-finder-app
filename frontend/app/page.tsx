@@ -21,10 +21,7 @@ function FeatureCard({
 export default async function HomePage() {
   // Redirect to /auth/signin if user is not logged in (server-side check)
 
-  const session = await getServerSession(authOptions as any);
-  if (!session) {
-    redirect("/auth/signin");
-  }
+  
 
   return (
       <div className="space-y-6 w-full max-w-full mx-auto">
