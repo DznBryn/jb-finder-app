@@ -1,12 +1,12 @@
 'use server';
 
 import type { GreenhouseJob, SelectionResponse, SelectedJob } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders } from '../lib/backendClient';
 
 export async function getJobDetails(jobId: string): Promise<GreenhouseJob> {
   const response = await fetch(
-    `${apiBase}/api/greenhouse/job?job_id=${jobId}`
+    `${getBackendUrl('/api/greenhouse/job')}?job_id=${jobId}`,
+    { headers: getBackendHeaders(false) }
   );
 
   if (!response.ok) {
@@ -21,9 +21,9 @@ export async function selectJobs(
   sessionId: string,
   jobIds: string[]
 ): Promise<SelectionResponse> {
-  const response = await fetch(`${apiBase}/api/jobs/select`, {
+  const response = await fetch(getBackendUrl('/api/jobs/select'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_ids: jobIds,
@@ -46,7 +46,8 @@ export async function getSelectedJobDetails(
   sessionId: string
 ): Promise<SelectedJobsResponse> {
   const response = await fetch(
-    `${apiBase}/api/jobs/selected/details?session_id=${sessionId}`
+    `${getBackendUrl('/api/jobs/selected/details')}?session_id=${sessionId}`,
+    { headers: getBackendHeaders(false) }
   );
 
   if (!response.ok) {

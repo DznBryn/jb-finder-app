@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth/next";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { getBackendUrl, getBackendHeaders } from "@/lib/backendClient";
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions as any) as { user?: { id?: string } };
@@ -32,12 +33,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const apiBase =
-    process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-
-  const res = await fetch(`${apiBase}/api/checkout/create`, {
+  const url = getBackendUrl("/api/checkout/create");
+  const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getBackendHeaders(),
     body: JSON.stringify({ plan, ui_mode, user_id: userId }),
   });
 

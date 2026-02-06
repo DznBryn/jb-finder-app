@@ -1,8 +1,7 @@
 'use server';
 
 import type { AnalyzeResult, DeepAnalyzeResponse } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders } from '../lib/backendClient';
 
 export type AnalyzeJobsResponse = {
   results: AnalyzeResult[];
@@ -13,9 +12,9 @@ export async function analyzeJobs(
   sessionId: string,
   jobIds: string[]
 ): Promise<AnalyzeJobsResponse> {
-  const response = await fetch(`${apiBase}/api/analyze`, {
+  const response = await fetch(getBackendUrl('/api/analyze'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_ids: jobIds,
@@ -41,7 +40,8 @@ export async function getDeepAnalysis(
   jobId: string
 ): Promise<DeepAnalyzeResponse | null> {
   const response = await fetch(
-    `${apiBase}/api/analyze/deep?session_id=${sessionId}&job_id=${jobId}`
+    `${getBackendUrl('/api/analyze/deep')}?session_id=${sessionId}&job_id=${jobId}`,
+    { headers: getBackendHeaders(false) }
   );
 
   if (!response.ok) {
@@ -55,9 +55,9 @@ export async function runDeepAnalysis(
   sessionId: string,
   jobId: string
 ): Promise<DeepAnalyzeResponse> {
-  const response = await fetch(`${apiBase}/api/analyze/deep`, {
+  const response = await fetch(getBackendUrl('/api/analyze/deep'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,

@@ -201,8 +201,6 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
   const [deepAnalysis, setDeepAnalysis] = useState<DeepAnalyzeResponse | null>(
     null
   );
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-
   const applyDeepAnalysis = (data: DeepAnalyzeResponse) => {
     setDeepAnalysis(data);
 
@@ -285,7 +283,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
       setJobError(null);
       try {
         const response = await fetch(
-          `${apiBase}/api/greenhouse/job?job_id=${jobId}`
+          `/api/greenhouse/job?job_id=${jobId}`
         );
         if (!response.ok) {
           const detail = await response.text();
@@ -311,14 +309,14 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     return () => {
       isMounted = false;
     };
-  }, [apiBase, jobId]);
+  }, [jobId]);
 
   useEffect(() => {
     if (!sessionProfile || deepAnalysis || deepAnalyzing) return;
     const loadCached = async () => {
       try {
         const response = await fetch(
-          `${apiBase}/api/analyze/deep?session_id=${sessionProfile.session_id}&job_id=${jobId}`
+          `/api/analyze/deep?session_id=${sessionProfile.session_id}&job_id=${jobId}`
         );
         if (!response.ok) return;
         const data = (await response.json()) as DeepAnalyzeResponse;
@@ -327,7 +325,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     };
 
     loadCached();
-  }, [apiBase, jobId, sessionProfile, deepAnalysis, deepAnalyzing]);
+  }, [jobId, sessionProfile, deepAnalysis, deepAnalyzing]);
 
   const storeResult = useMemo(() => {
     if (status !== "authenticated") return null;
@@ -349,7 +347,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     setAnalyzing(true);
     setAnalysisError(null);
     try {
-      const response = await fetch(`${apiBase}/api/analyze`, {
+      const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -430,7 +428,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     setDeepAnalyzing(true);
     setDeepAnalysisError(null);
     try {
-      const response = await fetch(`${apiBase}/api/analyze/deep`, {
+      const response = await fetch("/api/analyze/deep", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

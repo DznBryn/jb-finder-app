@@ -8,6 +8,7 @@ import { useUserBaseStore } from "@/lib/userBaseStore";
 import { useUserResumeStore } from "@/lib/userResumeStore";
 import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
 import { CheckoutModal } from "./CheckoutModal";
+import { Spinner } from "./ui/spinner";
 
 export default function AuthLayout({
   children,
@@ -60,8 +61,11 @@ export default function AuthLayout({
   // Loading: show minimal layout to avoid hydration mismatch
   if (status === "loading") {
     return (
-      <main className="min-h-svh w-full p-4 md:p-6">
-        {children}
+      <main className="min-h-svh w-full px-4 md:px-6">
+      <div className="flex flex-col items-center justify-center h-[80vh] w-full gap-4">
+        <Spinner className="size-10 text-slate-500 animate-spin" />
+        <span className="text-slate-500 text-base font-medium">Loading resources...</span>
+      </div>
       </main>
     );
   }

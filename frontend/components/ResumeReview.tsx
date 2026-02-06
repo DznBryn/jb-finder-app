@@ -19,7 +19,6 @@ export default function ResumeReview({
   jobTitle,
   companyName,
 }: ResumeReviewProps) {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
   const [resumeText, setResumeText] = useState<string>("");
   const [loadingResume, setLoadingResume] = useState(false);
   const [resumeError, setResumeError] = useState<string | null>(null);
@@ -36,7 +35,7 @@ export default function ResumeReview({
       setResumeError(null);
       try {
         const response = await fetch(
-          `${apiBase}/api/session/resume?session_id=${sessionId}`
+          `/api/session/resume?session_id=${sessionId}`
         );
         if (!response.ok) {
           const detail = await response.text();
@@ -61,14 +60,14 @@ export default function ResumeReview({
     return () => {
       isMounted = false;
     };
-  }, [apiBase, sessionId]);
+  }, [sessionId]);
 
   const runReview = async () => {
     if (!sessionId || reviewing) return;
     setReviewing(true);
     setReviewError(null);
     try {
-      const response = await fetch(`${apiBase}/api/resume/review`, {
+      const response = await fetch("/api/resume/review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

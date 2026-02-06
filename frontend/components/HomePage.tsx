@@ -76,7 +76,6 @@ export default function HomepageClient() {
   const [applyTone, setApplyTone] = useState("concise");
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
   const matchesPageSize = 25;
   const matchesCacheVersion = "v1";
   const matchesCachePrefix = `matches_cache_${matchesCacheVersion}`;
@@ -147,7 +146,7 @@ export default function HomepageClient() {
     }
 
     try {
-      const response = await fetch(`${apiBase}/api/resume/upload`, {
+      const response = await fetch(`/api/resume/upload`, {
         method: "POST",
         body: formData,
       });
@@ -249,7 +248,7 @@ export default function HomepageClient() {
     let isMounted = true;
     const loadTitles = async () => {
       try {
-        const response = await fetch(`${apiBase}/api/filters/titles`);
+        const response = await fetch("/api/filters/titles");
         if (!response.ok) return;
         const data = (await response.json()) as {
           titles: Array<{ title: string; count: number }>;
@@ -257,15 +256,13 @@ export default function HomepageClient() {
         if (isMounted && Array.isArray(data.titles)) {
           setTitleOptions(data.titles);
         }
-      } catch {
-        // Ignore title filter errors.
-      }
+      } catch { }
     };
     loadTitles();
     return () => {
       isMounted = false;
     };
-  }, [apiBase]);
+  }, []);
 
   useEffect(() => {
     if (!sessionProfile || hasLoadedLockedTerms) return;
@@ -480,7 +477,7 @@ export default function HomepageClient() {
         }
       }
       console.log(effectiveFilters)
-      const response = await fetch(`${apiBase}/api/matches`, {
+      const response = await fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -553,7 +550,7 @@ export default function HomepageClient() {
     setSelectionResult(null);
 
     try {
-      const response = await fetch(`${apiBase}/api/jobs/select`, {
+      const response = await fetch("/api/jobs/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -609,7 +606,7 @@ export default function HomepageClient() {
 
       for (let index = 0; index < total; index += 1) {
         const jobId = unanalyzedSelected[index];
-        const response = await fetch(`${apiBase}/api/analyze`, {
+        const response = await fetch(`/api/analyze`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -714,7 +711,7 @@ export default function HomepageClient() {
   const handlePrepareApply = async (jobId: string) => {
     if (!sessionProfile) return;
 
-    const response = await fetch(`${apiBase}/api/apply/prepare`, {
+    const response = await fetch("/api/apply/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -796,7 +793,7 @@ export default function HomepageClient() {
         <div
           className={`mx-auto flex min-h-screen flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-6'} px-6 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
         >
-          {!showMatchesSection  && <LandingHero />}
+          {!showMatchesSection && <LandingHero />}
           <UploadResume
             uploading={uploading}
             errorMessage={errorMessage}

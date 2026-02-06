@@ -23,6 +23,9 @@ _load_local_env()
 
 APP_ENV = os.getenv("APP_ENV", "production").lower()
 
+# Server (production platforms like Railway set PORT; default 8000 for local/Docker)
+PORT = int(os.getenv("PORT", "8000"))
+
 # Database
 def _database_url() -> str:
     url = os.getenv("DATABASE_URL", "").strip()
@@ -47,6 +50,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
 OPENAI_MODEL_CHEAP = os.getenv("OPENAI_MODEL_CHEAP", "gpt-5-nano")
 OPENAI_RESUME_MAX_OUTPUT_TOKENS = int(os.getenv("OPENAI_RESUME_MAX_OUTPUT_TOKENS", "1024"))
+# Max concurrent threads for parallel skill extraction (analyze_selected_jobs). I/O-bound LLM calls.
+LLM_SKILL_EXTRACT_MAX_WORKERS = int(os.getenv("LLM_SKILL_EXTRACT_MAX_WORKERS", "8"))
 
 # Stripe
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")

@@ -1,14 +1,14 @@
 'use server';
 
 import type { SessionProfile } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders } from '../lib/backendClient';
 
 export async function getSessionProfile(
   sessionId: string
 ): Promise<SessionProfile | null> {
   const response = await fetch(
-    `${apiBase}/api/session/profile?session_id=${sessionId}`
+    `${getBackendUrl('/api/session/profile')}?session_id=${sessionId}`,
+    { headers: getBackendHeaders(false) }
   );
 
   if (!response.ok) {

@@ -5,8 +5,7 @@ import type {
   ResumeTextResponse,
   ResumeReviewResponse,
 } from '../type';
-
-const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
+import { getBackendUrl, getBackendHeaders, getBackendHeadersForm } from '../lib/backendClient';
 
 export async function uploadResume(
   formData: FormData,
@@ -15,8 +14,9 @@ export async function uploadResume(
   if (sessionId) {
     formData.set('session_id', sessionId);
   }
-  const response = await fetch(`${apiBase}/api/resume/upload`, {
+  const response = await fetch(getBackendUrl('/api/resume/upload'), {
     method: 'POST',
+    headers: getBackendHeadersForm(),
     body: formData,
   });
 
@@ -32,7 +32,8 @@ export async function getResumeText(
   sessionId: string
 ): Promise<ResumeTextResponse> {
   const response = await fetch(
-    `${apiBase}/api/session/resume?session_id=${sessionId}`
+    `${getBackendUrl('/api/session/resume')}?session_id=${sessionId}`,
+    { headers: getBackendHeaders(false) }
   );
 
   if (!response.ok) {
@@ -47,9 +48,9 @@ export async function reviewResume(
   sessionId: string,
   jobId: string
 ): Promise<ResumeReviewResponse> {
-  const response = await fetch(`${apiBase}/api/resume/review`, {
+  const response = await fetch(getBackendUrl('/api/resume/review'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getBackendHeaders(),
     body: JSON.stringify({
       session_id: sessionId,
       job_id: jobId,

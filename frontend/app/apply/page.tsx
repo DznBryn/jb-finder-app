@@ -86,8 +86,6 @@ export default function ApplyPage() {
   >({});
   const [tone, setTone] = useState("concise");
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-
   useEffect(() => {
     if (sessionProfile?.session_id) {
       setSessionId(sessionProfile.session_id);
@@ -102,7 +100,7 @@ export default function ApplyPage() {
   useEffect(() => {
     if (!sessionId) return;
     if (!sessionProfile) {
-      fetch(`${apiBase}/api/session/profile?session_id=${sessionId}`)
+      fetch(`/api/session/profile?session_id=${sessionId}`)
         .then((response) =>
           response.ok ? (response.json() as Promise<SessionProfile>) : null
         )
@@ -111,14 +109,14 @@ export default function ApplyPage() {
         })
         .catch(() => {});
     }
-  }, [apiBase, sessionId, sessionProfile, setSessionProfile]);
+  }, [sessionId, sessionProfile, setSessionProfile]);
 
   const loadSelectedJobs = async () => {
     if (!sessionId) return;
     setLoadingJobs(true);
     try {
       const response = await fetch(
-        `${apiBase}/api/jobs/selected/details?session_id=${sessionId}`
+        `/api/jobs/selected/details?session_id=${sessionId}`
       );
       if (!response.ok) return;
       const data = (await response.json()) as { jobs: SelectedJob[] };
@@ -141,7 +139,7 @@ export default function ApplyPage() {
       const responses = await Promise.all(
         jobIds.map(async (jobId) => {
           const response = await fetch(
-            `${apiBase}/api/greenhouse/job?job_id=${jobId}`
+            `/api/greenhouse/job?job_id=${jobId}`
           );
           if (!response.ok) return { jobId, data: null };
           const data = (await response.json()) as GreenhouseJob;
@@ -270,7 +268,7 @@ export default function ApplyPage() {
       const demographic_answers = job
         ? buildDemographicAnswers(jobId, job)
         : null;
-      const response = await fetch(`${apiBase}/api/greenhouse/apply`, {
+      const response = await fetch("/api/greenhouse/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -302,7 +300,7 @@ export default function ApplyPage() {
 
   const prepareApply = async (jobId: string) => {
     if (!sessionId) return;
-    const response = await fetch(`${apiBase}/api/apply/prepare`, {
+    const response = await fetch("/api/apply/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
