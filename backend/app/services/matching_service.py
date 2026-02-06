@@ -155,6 +155,11 @@ def build_matches(
         .order_by(JobListing.updated_at.desc())
     )
     all_jobs = jobs_query.all()
+    if not all_jobs:
+        logger.warning(
+            "No active jobs in database; matches will be empty. "
+            "Run job ingestion (e.g. schedulers/run_refresh.py or load companies + Greenhouse refresh) to populate jobs."
+        )
     filtered_jobs = []
     for job in all_jobs:
         if not _passes_filters(
