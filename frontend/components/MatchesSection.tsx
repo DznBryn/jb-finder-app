@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type React from "react";
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useSession as useAuthSession } from "next-auth/react";
 import {
   Pagination,
@@ -59,6 +59,78 @@ function getGradeBadgeClasses(grade: string | null | undefined) {
   }
 }
 
+const MAX_LOCATION_SUGGESTIONS = 12;
+
+function LocationFilterInput({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ location: string; count: number }>;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const query = (value ?? "").trim().toLowerCase();
+  const suggestions = useMemo(() => {
+    if (!query) return options.slice(0, MAX_LOCATION_SUGGESTIONS);
+    return options
+      .filter((opt) => opt.location.toLowerCase().includes(query))
+      .slice(0, MAX_LOCATION_SUGGESTIONS);
+  }, [options, query]);
+
+  const closeDropdown = () => {
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+    blurTimerRef.current = setTimeout(() => setOpen(false), 150);
+  };
+
+  useEffect(() => () => {
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
+  }, []);
+
+  return (
+    <div className="relative mt-2">
+      <input
+        type="text"
+        placeholder={placeholder}
+        className="block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={closeDropdown}
+      />
+      {open && suggestions.length > 0 ? (
+        <ul
+          className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-lg"
+          role="listbox"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {suggestions.map((opt) => (
+            <li
+              key={opt.location}
+              role="option"
+              className="cursor-pointer px-3 py-2 text-xs text-slate-200 hover:bg-slate-800"
+              onMouseDown={() => {
+                onChange(opt.location);
+                setOpen(false);
+              }}
+            >
+              {opt.location}
+              {opt.count > 0 ? (
+                <span className="ml-2 text-slate-500">({opt.count})</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
 export default function MatchesSection({
   matchesError,
   hasLoadedMatches,
@@ -97,6 +169,7 @@ export default function MatchesSection({
   onDeselectAll,
   onSaveSelections,
   onToggleJobSelection,
+  locationOptions,
 }: MatchesSectionProps) {
   const { sessionProfile } = useSession();
   const { status } = useAuthSession();
@@ -362,12 +435,11 @@ export default function MatchesSection({
               </div>
               <div>
                 <label className="text-xs text-slate-400">Location</label>
-                <input
-                  type="text"
-                  placeholder="Austin, NYC"
-                  className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-200"
+                <LocationFilterInput
                   value={filterLocation}
-                  onChange={(event) => onFilterLocationChange(event.target.value)}
+                  onChange={onFilterLocationChange}
+                  options={locationOptions}
+                  placeholder="Austin, NYC"
                 />
               </div>
               <div>
@@ -520,19 +592,26 @@ export default function MatchesSection({
                       <div className="h-20 rounded bg-slate-900" />
                     </div>
                   ))
-                  : matches.map((match) => (
+                  : matches.map((match) => {
+                    const isSelected = selectedJobs.includes(match.job_id);
+                    return (
                     <div
                       key={match.job_id}
-                      className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200 flex flex-col gap-3  "
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onToggleJobSelection(match.job_id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onToggleJobSelection(match.job_id);
+                        }
+                      }}
+                      className={`rounded-xl border p-4 text-sm text-slate-200 flex flex-col gap-3 transition-colors cursor-pointer select-none ${
+                        isSelected
+                          ? "border-emerald-500/60 bg-emerald-500/10 ring-1 ring-emerald-500/30"
+                          : "border-slate-800 bg-slate-950"
+                      }`}
                     >
-                      <label className="flex items-center gap-2 text-xs text-slate-400">
-                        <input
-                          type="checkbox"
-                          checked={selectedJobs.includes(match.job_id)}
-                          onChange={() => onToggleJobSelection(match.job_id)}
-                        />
-                        Select for apply
-                      </label>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-base font-semibold text-white">
@@ -625,15 +704,17 @@ export default function MatchesSection({
                       ) : null}
                       <div className="grid grid-cols-2 gap-2 items-center w-full">
                         <Link
-                          className=" inline-flex text-xs font-semibold text-emerald-300"
+                          className="inline-flex text-xs font-semibold text-emerald-300"
                           href={`/jobs/${match.job_id}`}
+                          onClick={(e) => e.stopPropagation()}
                         >
                           View job details →
                         </Link>
 
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
               </div>
             </>
           ) : (

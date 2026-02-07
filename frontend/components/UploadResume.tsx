@@ -41,7 +41,8 @@ export default function UploadResume({
               type="file"
               accept=".pdf,.doc,.docx,.txt"
               required
-              className="min-w-24 w-full py-0 min-h-12 file:min-h-12 px-0 overflow-hidden file:mr-2 file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:text-slate-200 file:hover:bg-slate-600"
+              disabled={uploading}
+              className="min-w-24 w-full py-0 min-h-12 file:min-h-12 px-0 overflow-hidden file:mr-2 file:border-0 file:bg-slate-800 file:px-3 file:py-2 file:text-sm file:text-slate-200 file:hover:bg-slate-600 disabled:opacity-60 disabled:pointer-events-none"
             />
             <Button
               className="min-h-12 bg-emerald-500 text-slate-950 hover:bg-slate-900 disabled:bg-slate-700"

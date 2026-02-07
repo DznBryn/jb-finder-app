@@ -30,6 +30,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     window.localStorage.removeItem(`analysis_results_${sessionId}`);
     window.localStorage.removeItem(`analyzed_job_details_${sessionId}`);
     window.localStorage.removeItem(`title_terms_${sessionId}`);
+    window.localStorage.removeItem(`selected_jobs_${sessionId}`);
 
     setSessionProfile(null);
     setSelectedJobs([]);
@@ -38,6 +39,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setAnalyzedJobIds([]);
     setAnalyzedJobDetails({});
   };
+
+  // Rehydrate selections on mount (e.g. after sign-in redirect) so they persist through sign-in and redirect.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sessionId = window.localStorage.getItem("session_id");
+    if (!sessionId) return;
+    try {
+      const stored = window.localStorage.getItem(`selected_jobs_${sessionId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        if (Array.isArray(parsed)) {
+          setSelectedJobs(parsed);
+        }
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -81,6 +98,16 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {}
     }
+    const selectedKey = `selected_jobs_${sessionId}`;
+    const storedSelected = window.localStorage.getItem(selectedKey);
+    if (storedSelected) {
+      try {
+        const parsed = JSON.parse(storedSelected) as string[];
+        if (Array.isArray(parsed)) {
+          setSelectedJobs(parsed);
+        }
+      } catch {}
+    }
 
     if (sessionProfile?.session_id === sessionId) return;
 
@@ -103,6 +130,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     loadProfile();
   }, [sessionProfile?.session_id]);
+
+  // Persist job selection list of IDs only (survives pagination and refresh).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sessionId = sessionProfile?.session_id ?? window.localStorage.getItem("session_id");
+    if (!sessionId) return;
+    try {
+      const jobSelectionIds = selectedJobs;
+      window.localStorage.setItem(
+        `selected_jobs_${sessionId}`,
+        JSON.stringify(jobSelectionIds)
+      );
+    } catch {}
+  }, [selectedJobs, sessionProfile?.session_id]);
 
   return (
     <SessionContext.Provider

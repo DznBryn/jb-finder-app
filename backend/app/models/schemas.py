@@ -80,6 +80,19 @@ class TitleFiltersResponse(BaseModel):
     titles: List[TitleCount]
 
 
+class LocationCount(BaseModel):
+    """Aggregated job location counts for filter suggestions."""
+
+    location: str
+    count: int
+
+
+class LocationFiltersResponse(BaseModel):
+    """Response wrapper for location filter options."""
+
+    locations: List[LocationCount]
+
+
 class MatchFilters(BaseModel):
     """Optional filters to refine match results."""
 

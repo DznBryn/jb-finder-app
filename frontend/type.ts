@@ -295,6 +295,11 @@ export type TitleCount = {
   count: number;
 };
 
+export type LocationCount = {
+  location: string;
+  count: number;
+};
+
 export type UploadResumeProps = {
   uploading: boolean;
   errorMessage: string | null;
@@ -314,6 +319,7 @@ export type MatchesSectionProps = {
   activeFilters: MatchFilters | null;
   filterTitleTerms: string;
   titleOptions: TitleCount[];
+  locationOptions: LocationCount[];
   filterLocation: string;
   filterWorkMode: string;
   filterPayRange: string;
