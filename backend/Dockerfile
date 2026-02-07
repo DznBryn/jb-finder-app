@@ -15,4 +15,5 @@ COPY alembic.ini /app/alembic.ini
 EXPOSE 8000
 
 # Use PORT from env in production (e.g. Railway); default 8000 for local/Docker.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload"]
+# Pre-deploy: run migrations then start the app (omit --reload in production).
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
