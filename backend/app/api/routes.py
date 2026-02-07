@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -606,7 +606,7 @@ def select_jobs(
     rejected: list[str] = []
 
     if accepted:
-        save_job_selections(db, payload.session_id, accepted)
+        save_job_selections(db, payload.session_id, accepted, payload.user_id)
 
     return JobSelectionResponse(
         accepted_job_ids=accepted,
@@ -1102,20 +1102,22 @@ def user_resumes(
 
 
 @router.get("/api/jobs/selected")
-def selected_jobs(session_id: UUID, db: Session = Depends(get_db)) -> Dict[str, list]:
+def selected_jobs(
+    session_id: UUID, user_id: Optional[str] = None, db: Session = Depends(get_db)
+) -> Dict[str, list]:
     """Return the job IDs selected for this session."""
 
-    selected = list_job_selections(db, session_id)
+    selected = list_job_selections(db, session_id, user_id)
     return {"job_ids": selected}
 
 
 @router.get("/api/jobs/selected/details", response_model=SelectedJobsResponse)
 def selected_job_details(
-    session_id: UUID, db: Session = Depends(get_db)
+    session_id: UUID, user_id: Optional[str] = None, db: Session = Depends(get_db)
 ) -> SelectedJobsResponse:
     """Return job details for the selected job IDs."""
 
-    selected = list_job_selections(db, session_id)
+    selected = list_job_selections(db, session_id, user_id)
     jobs = list_jobs_by_ids(db, selected)
     mapped = [
         SelectedJobDetail(

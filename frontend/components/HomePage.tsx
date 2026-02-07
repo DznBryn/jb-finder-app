@@ -6,7 +6,6 @@ import { signIn, useSession as useAuthSession } from "next-auth/react";
 import { useSession } from "../app/session-context";
 import MatchesSkeleton from "./skeletons/MatchesSkeleton";
 import UploadResume from "./UploadResume";
-import SignupPrompt from "./SignupPrompt";
 import { useUserBaseStore } from "@/lib/userBaseStore";
 import type {
   AnalyzeResult,
@@ -19,6 +18,7 @@ import type {
 } from "@/type";
 
 import LandingHero from "./LandingHero";
+import SignupPrompt from "./SignupPrompt";
 
 const MatchesSection = dynamic(() => import("./MatchesSection"), {
   loading: () => <MatchesSkeleton />,
@@ -78,6 +78,18 @@ export default function HomepageClient() {
   >({});
   const [applyTone, setApplyTone] = useState("concise");
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  
+  const getCallbackUrl = () =>
+    typeof window === "undefined" ? "/" : window.location.href;
+
+  const requireAuthForLlm = () => {
+    if (authStatus === "unauthenticated") {
+      setShowSignupPrompt(true);
+      return true;
+    }
+    return false;
+  };
+
 
   const matchesPageSize = 25;
   const matchesCacheVersion = "v1";
@@ -217,33 +229,71 @@ export default function HomepageClient() {
     }
   };
 
-  // Signup prompt is shown after saving selections (see handleSaveSelections), not on initial match load.
-
   useEffect(() => {
     if (authStatus !== "authenticated") return;
     if (typeof window === "undefined") return;
+    
     const sessionId = sessionProfile?.session_id;
+    const userId = (authData?.user as { id?: string } | undefined)?.id;
     const convertKey = sessionId
       ? `session_converted_${sessionId}`
       : "signup_bonus_ensured";
-    if (window.localStorage.getItem(convertKey)) return;
-    fetch("/api/auth/convert-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        sessionId != null ? { session_id: sessionId } : {}
-      ),
-    })
-      .then((response) => {
-        if (response.ok) {
-          window.localStorage.setItem(convertKey, "1");
-        }
+
+    if (!window.localStorage.getItem(convertKey)) {
+      fetch("/api/auth/convert-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          sessionId != null ? { session_id: sessionId } : {}
+        ),
       })
-      .catch(() => {});
-  }, [authStatus, sessionProfile?.session_id]);
+        .then((response) => {
+          if (response.ok) {
+            window.localStorage.setItem(convertKey, "1");
+          }
+        })
+        .catch(() => {});
+    }
+
+    if (!sessionId || !userId) return;
+
+    const selectionKey = `selected_jobs_${sessionId}`;
+    const syncKey = `selected_jobs_synced_${sessionId}_${userId}`;
+    
+    if (window.localStorage.getItem(syncKey)) return;
+    
+    const storedSelections = window.localStorage.getItem(selectionKey);
+    
+    if (!storedSelections) return;
+    
+    try {
+      const parsed = JSON.parse(storedSelections) as string[];
+      
+      if (!Array.isArray(parsed) || parsed.length === 0) return;
+      
+      const uniqueJobIds = Array.from(new Set(parsed));
+      
+      fetch("/api/jobs/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          job_ids: uniqueJobIds,
+          user_id: userId,
+        }),
+      })
+        .then((response) => {
+          if (!response.ok) return;
+          window.localStorage.setItem(syncKey, "1");
+          window.localStorage.removeItem(selectionKey);
+        })
+        .catch(() => {});
+    } catch { }
+  }, [authData?.user, authStatus, sessionProfile?.session_id]);
 
   useEffect(() => {
     let isMounted = true;
+    
     const loadTitles = async () => {
       try {
         const response = await fetch("/api/filters/titles");
@@ -256,6 +306,7 @@ export default function HomepageClient() {
         }
       } catch { }
     };
+    
     const loadLocations = async () => {
       try {
         const response = await fetch("/api/filters/locations");
@@ -268,8 +319,11 @@ export default function HomepageClient() {
         }
       } catch { }
     };
+    
     loadTitles();
+    
     loadLocations();
+    
     return () => {
       isMounted = false;
     };
@@ -277,8 +331,10 @@ export default function HomepageClient() {
 
   useEffect(() => {
     if (!sessionProfile || hasLoadedLockedTerms) return;
+    
     const key = `title_terms_${sessionProfile.session_id}`;
     const stored = window.localStorage.getItem(key);
+    
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
@@ -294,9 +350,7 @@ export default function HomepageClient() {
             );
           }
         }
-      } catch {
-        // Ignore malformed stored data.
-      }
+      } catch { }
     }
     setHasLoadedLockedTerms(true);
   }, [sessionProfile, hasLoadedLockedTerms]);
@@ -314,18 +368,14 @@ export default function HomepageClient() {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.setItem(key, value);
-    } catch {
-      // Ignore storage failures (private mode/quota).
-    }
+    } catch { }
   };
 
   const safeStorageRemove = (key: string) => {
     if (typeof window === "undefined") return;
     try {
       window.localStorage.removeItem(key);
-    } catch {
-      // Ignore storage failures.
-    }
+    } catch { }
   };
 
   const normalizeFilters = (filters: MatchFilters | null) => {
@@ -406,6 +456,7 @@ export default function HomepageClient() {
     if (!sessionProfile?.session_id) return;
     if (!hasLoadedLockedTerms) return;
     if (hasLoadedMatches) return;
+    
     const effectiveFilters =
       activeFilters ??
       (lockedTitleTerms.length > 0
@@ -417,9 +468,12 @@ export default function HomepageClient() {
           industry: null,
         }
         : null);
+
     const cacheKey = getMatchesCacheKey(sessionProfile.session_id, 1, effectiveFilters);
     const cached = safeStorageGet(cacheKey);
+
     if (!cached) return;
+
     try {
       const data = JSON.parse(cached) as {
         matches: MatchResult[];
@@ -450,7 +504,9 @@ export default function HomepageClient() {
 
     setLoadingMatches(true);
     setMatchesError(null);
-    console.log(activeSession);
+    
+    console.log("fetchMatches", activeSession);
+
     try {
       const effectiveFilters =
         filters ??
@@ -487,7 +543,7 @@ export default function HomepageClient() {
           safeStorageRemove(cacheKey);
         }
       }
-      console.log(effectiveFilters)
+      console.log("effectiveFilters", effectiveFilters)
       const response = await fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -557,34 +613,56 @@ export default function HomepageClient() {
 
   const handleSaveSelections = async () => {
     if (!sessionProfile || selectedJobs.length === 0) return;
+    requireAuthForLlm();
 
     setSelectionError(null);
     setSelectionResult(null);
 
     try {
-      const response = await fetch("/api/jobs/select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_id: sessionProfile.session_id,
-          job_ids: selectedJobs,
-        }),
-      });
-
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(detail || "Selection failed.");
-      }
-
-      const data = (await response.json()) as SelectionResponse;
-      setSelectionResult(data);
-      // Show signup prompt after first time saving selections (unauthenticated only, once per session).
-      if (authStatus === "unauthenticated" && sessionProfile?.session_id && typeof window !== "undefined") {
-        const promptKey = `signup_prompted_${sessionProfile.session_id}`;
-        if (!window.localStorage.getItem(promptKey)) {
-          window.localStorage.setItem(promptKey, "1");
-          setShowSignupPrompt(true);
+      const uniqueJobIds = Array.from(new Set(selectedJobs));
+      if (authStatus === "authenticated") {
+        const userId = (authData?.user as { id?: string } | undefined)?.id;
+        if (!userId) {
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(
+              `selected_jobs_${sessionProfile.session_id}`,
+              JSON.stringify(uniqueJobIds)
+            );
+          }
+          setSelectionResult({
+            accepted_job_ids: uniqueJobIds,
+            rejected_job_ids: [],
+          });
+          return;
         }
+        const response = await fetch("/api/jobs/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionProfile.session_id,
+            job_ids: uniqueJobIds,
+            user_id: userId,
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new Error(detail || "Selection failed.");
+        }
+
+        const data = (await response.json()) as SelectionResponse;
+        setSelectionResult(data);
+      } else {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            `selected_jobs_${sessionProfile.session_id}`,
+            JSON.stringify(uniqueJobIds)
+          );
+        }
+        setSelectionResult({
+          accepted_job_ids: uniqueJobIds,
+          rejected_job_ids: [],
+        });
       }
     } catch (error) {
       setSelectionError(
@@ -601,6 +679,7 @@ export default function HomepageClient() {
     ) {
       return;
     }
+    if (requireAuthForLlm()) return;
     setAnalyzing(true);
     setAnalysisError(null);
     setAnalysisProgress(null);
@@ -646,7 +725,6 @@ export default function HomepageClient() {
             "@/lib/checkoutModalStore"
           );
           useCheckoutModalStore.getState().openFor402(detail);
-          setShowSignupPrompt(true);
           throw new Error("PAYMENT_REQUIRED");
         }
         if (!response.ok) {
@@ -730,6 +808,7 @@ export default function HomepageClient() {
 
   const handlePrepareApply = async (jobId: string) => {
     if (!sessionProfile) return;
+    if (requireAuthForLlm()) return;
 
     const response = await fetch("/api/apply/prepare", {
       method: "POST",
@@ -807,12 +886,12 @@ export default function HomepageClient() {
       <SignupPrompt
         open={showSignupPrompt}
         onOpenChange={setShowSignupPrompt}
-        onGoogle={() => signIn("google", { redirectTo: "/" })}
-        onLinkedIn={() => signIn("linkedin", { redirectTo: "/" })}
+        onGoogle={() => signIn("google", { callbackUrl: getCallbackUrl() })}
+        onLinkedIn={() => signIn("linkedin", { callbackUrl: getCallbackUrl() })}
       />
       <div className="landing-page">
         <div
-          className={`mx-auto flex min-h-[70vh] flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-6'} px-6 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
+          className={`mx-auto flex min-h-[70vh] flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-8'} px-2 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
         >
           {!showMatchesSection && <LandingHero />}
           <UploadResume

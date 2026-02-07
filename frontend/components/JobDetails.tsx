@@ -2,13 +2,14 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { useSession as useAuthSession } from "next-auth/react";
+import { signIn, useSession as useAuthSession } from "next-auth/react";
 import { useSession } from "../app/session-context";
 import { useUserBaseStore } from "@/lib/userBaseStore";
 import { useUserResumeStore } from "@/lib/userResumeStore";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import SignupPrompt from "@/components/SignupPrompt";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ResumeReviewSkeleton from "./skeletons/ResumeReviewSkeleton";
 import CoverLetterEditorSkeleton from "./skeletons/CoverLetterEditorSkeleton";
 import type {
   AnalyzeResult,
@@ -27,10 +28,6 @@ import type {
   GreenhouseJob,
   JobSummary,
 } from "@/type";
-
-const ResumeReview = dynamic(() => import("./ResumeReview"), {
-  loading: () => <ResumeReviewSkeleton />,
-});
 
 const CoverLetterEditor = dynamic(() => import("./CoverLetterEditor"), {
   loading: () => <CoverLetterEditorSkeleton />,
@@ -201,6 +198,18 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
   const [deepAnalysis, setDeepAnalysis] = useState<DeepAnalyzeResponse | null>(
     null
   );
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+
+  const getCallbackUrl = () =>
+    typeof window === "undefined" ? "/" : window.location.href;
+
+  const requireAuthForLlm = () => {
+    if (status === "unauthenticated") {
+      setShowSignupPrompt(true);
+      return true;
+    }
+    return false;
+  };
   const applyDeepAnalysis = (data: DeepAnalyzeResponse) => {
     setDeepAnalysis(data);
 
@@ -349,6 +358,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
 
   const handleAnalyze = async () => {
     if (!sessionProfile || analysisResult) return;
+    if (requireAuthForLlm()) return;
     setAnalyzing(true);
     setAnalysisError(null);
     try {
@@ -430,6 +440,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
 
   const handleDeepAnalyze = async () => {
     if (!sessionProfile) return;
+    if (requireAuthForLlm()) return;
     setDeepAnalyzing(true);
     setDeepAnalysisError(null);
     try {
@@ -484,7 +495,16 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
   }, [job?.content]);
 
   return (
-    <div className="flex flex-col md:flex-row gap-6">
+    <>
+      <SignupPrompt
+        open={showSignupPrompt}
+        onOpenChange={setShowSignupPrompt}
+        onGoogle={() => signIn("google", { callbackUrl: getCallbackUrl() })}
+        onLinkedIn={() => signIn("linkedin", { callbackUrl: getCallbackUrl() })}
+        title="Save your progress"
+        message="Create an account to save your session and unlock more features."
+      />
+      <div className="flex flex-col md:flex-row gap-6">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-7/12">
         <div className="w-full h-auto">
           {loadingJob ? (
@@ -588,30 +608,28 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
             </div>
             <ButtonGroup className="flex flex-wrap">
 
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
-                    variant="outline"
-                    type="button"
-                  >
-                    Resume review
-                  </Button>
-                </DialogTrigger>
-                <DialogContent variant="fullscreen">
-                  <DialogHeader>
-                    <DialogDescription>
-                      Review your resume against this role with targeted improvements.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <ResumeReview
-                    sessionId={sessionProfile?.session_id ?? null}
-                    jobId={jobId}
-                    jobTitle={job?.title ?? null}
-                    companyName={analyzedJobDetails[jobId]?.company ?? null}
-                  />
-                </DialogContent>
-              </Dialog>
+              <Button
+                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                variant="outline"
+                type="button"
+                asChild
+              >
+                <Link
+                  href={
+                    `/jobs/${jobId}/resume-review` +
+                    (() => {
+                      const q = new URLSearchParams();
+                      if (job?.title) q.set("title", job.title);
+                      if (analyzedJobDetails[jobId]?.company)
+                        q.set("company", analyzedJobDetails[jobId].company);
+                      const s = q.toString();
+                      return s ? `?${s}` : "";
+                    })()
+                  }
+                >
+                  Resume review
+                </Link>
+              </Button>
               <Dialog>
                 <DialogTrigger asChild>
                   <Button
@@ -751,5 +769,6 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
         ) : null}
       </div>
     </div>
+    </>
   );
 }

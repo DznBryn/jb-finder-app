@@ -115,6 +115,7 @@ class JobSelectionRequest(BaseModel):
 
     session_id: UUID
     job_ids: List[str]
+    user_id: Optional[str] = None
 
 
 class JobSelectionResponse(BaseModel):

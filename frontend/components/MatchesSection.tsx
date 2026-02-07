@@ -248,7 +248,7 @@ export default function MatchesSection({
     });
    
     return (
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 w-full max-w-full">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 w-full max-w-full">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Top matches</h3>
@@ -369,7 +369,7 @@ export default function MatchesSection({
     return pages;
   };
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 w-full max-w-full">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 w-full max-w-full">
       {matchesError ? (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
           {matchesError}
@@ -563,15 +563,19 @@ export default function MatchesSection({
               ) : null}
 
               {selectionResult ? (
-                <div className="rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm text-slate-300">
-                  <p>
-                    Accepted:{" "}
-                    {selectionResult.accepted_job_ids.join(", ") || "None"}
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-slate-200">
+                  <p className="font-medium text-emerald-200">
+                    {selectionResult.accepted_job_ids.length}{" "}
+                    {selectionResult.accepted_job_ids.length === 1
+                      ? "job"
+                      : "jobs"}{" "}
+                    saved for apply
                   </p>
-                  <p>
-                    Rejected:{" "}
-                    {selectionResult.rejected_job_ids.join(", ") || "None"}
-                  </p>
+                  {selectionResult.rejected_job_ids.length > 0 ? (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Rejected: {selectionResult.rejected_job_ids.join(", ")}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
 
