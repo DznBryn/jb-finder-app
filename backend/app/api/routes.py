@@ -42,6 +42,7 @@ from app.models.schemas import (
     RefreshEnqueueResponse,
     RefreshStatusResponse,
     TitleFiltersResponse,
+    LocationFiltersResponse,
 )
 from app.services.apply_service import prepare_cover_letter
 from app.services.analysis_service import (
@@ -567,6 +568,27 @@ def list_title_filters(limit: int = 100, db: Session = Depends(get_db)) -> Title
     )
     return TitleFiltersResponse(
         titles=[{"title": title, "count": count} for title, count in rows]
+    )
+
+
+@router.get("/api/filters/locations", response_model=LocationFiltersResponse)
+def list_location_filters(
+    limit: int = 200, db: Session = Depends(get_db)
+) -> LocationFiltersResponse:
+    """Return distinct job locations with counts for filter suggestions."""
+
+    safe_limit = max(1, min(limit, 500))
+    rows = (
+        db.query(JobListing.location, func.count(JobListing.id))
+        .filter(JobListing.is_active.is_(True))
+        .filter(JobListing.location != None, JobListing.location != "")
+        .group_by(JobListing.location)
+        .order_by(func.count(JobListing.id).desc(), JobListing.location.asc())
+        .limit(safe_limit)
+        .all()
+    )
+    return LocationFiltersResponse(
+        locations=[{"location": loc, "count": count} for loc, count in rows]
     )
 
 

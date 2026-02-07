@@ -57,6 +57,9 @@ export default function HomepageClient() {
   const [titleOptions, setTitleOptions] = useState<
     Array<{ title: string; count: number }>
   >([]);
+  const [locationOptions, setLocationOptions] = useState<
+    Array<{ location: string; count: number }>
+  >([]);
   const [activeFilters, setActiveFilters] = useState<MatchFilters | null>(null);
   const [lockedTitleTerms, setLockedTitleTerms] = useState<string[]>([]);
   const [hasLoadedLockedTerms, setHasLoadedLockedTerms] = useState(false);
@@ -214,16 +217,7 @@ export default function HomepageClient() {
     }
   };
 
-  useEffect(() => {
-    if (!sessionProfile?.session_id) return;
-    if (authStatus !== "unauthenticated") return;
-    if (!hasLoadedMatches || matches.length === 0) return;
-    if (typeof window === "undefined") return;
-    const promptKey = `signup_prompted_${sessionProfile.session_id}`;
-    if (window.localStorage.getItem(promptKey)) return;
-    window.localStorage.setItem(promptKey, "1");
-    setShowSignupPrompt(true);
-  }, [authStatus, hasLoadedMatches, matches.length, sessionProfile?.session_id]);
+  // Signup prompt is shown after saving selections (see handleSaveSelections), not on initial match load.
 
   useEffect(() => {
     if (authStatus !== "authenticated") return;
@@ -262,7 +256,20 @@ export default function HomepageClient() {
         }
       } catch { }
     };
+    const loadLocations = async () => {
+      try {
+        const response = await fetch("/api/filters/locations");
+        if (!response.ok) return;
+        const data = (await response.json()) as {
+          locations: Array<{ location: string; count: number }>;
+        };
+        if (isMounted && Array.isArray(data.locations)) {
+          setLocationOptions(data.locations);
+        }
+      } catch { }
+    };
     loadTitles();
+    loadLocations();
     return () => {
       isMounted = false;
     };
@@ -535,6 +542,7 @@ export default function HomepageClient() {
     }
     setActiveFilters(payload);
     setMatchesPage(1);
+    setSelectedJobs([]);
     await fetchMatches(1, payload);
   };
 
@@ -570,6 +578,14 @@ export default function HomepageClient() {
 
       const data = (await response.json()) as SelectionResponse;
       setSelectionResult(data);
+      // Show signup prompt after first time saving selections (unauthenticated only, once per session).
+      if (authStatus === "unauthenticated" && sessionProfile?.session_id && typeof window !== "undefined") {
+        const promptKey = `signup_prompted_${sessionProfile.session_id}`;
+        if (!window.localStorage.getItem(promptKey)) {
+          window.localStorage.setItem(promptKey, "1");
+          setShowSignupPrompt(true);
+        }
+      }
     } catch (error) {
       setSelectionError(
         error instanceof Error ? error.message : "Unexpected selection error."
@@ -747,6 +763,7 @@ export default function HomepageClient() {
     activeFilters: activeFilters,
     filterTitleTerms: filterTitleTerms,
     titleOptions: titleOptions,
+    locationOptions: locationOptions,
     filterLocation: filterLocation,
     filterWorkMode: filterWorkMode,
     filterPayRange: filterPayRange,
