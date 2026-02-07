@@ -1,10 +1,10 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
+import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { clearSessionAndStorage } from "@/lib/signOut";
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
@@ -18,15 +18,8 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
 
 function SignInContent() {
   const searchParams = useSearchParams();
-  const { status } = useSession();
   const error = searchParams.get("error") ?? undefined;
   const errorMessage = error ? OAUTH_ERROR_MESSAGES[error] ?? OAUTH_ERROR_MESSAGES.Default : null;
-  const hasSession = status === "authenticated";
-
-  const handleSignOut = async () => {
-    clearSessionAndStorage();
-    await signOut({ callbackUrl: "/auth/signin" });
-  };
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 px-4">
@@ -90,13 +83,12 @@ function SignInContent() {
           type="button"
           variant="outline"
           className="w-full"
-          onClick={handleSignOut}
-          disabled={!hasSession}
+          asChild
         >
-          Sign out 
+          <Link href="/">Get Started</Link>
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          Use this if you signed in with a different account and want to try again.
+          Return to the landing page.
         </p>
       </div>
     </div>

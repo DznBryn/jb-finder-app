@@ -7,6 +7,7 @@ import json
 from pprint import pprint
 import stripe
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import (
@@ -159,6 +160,166 @@ def get_checkout_session_status(session_id: str) -> dict[str, str]:
         "status": getattr(session, "status", "unknown") or "unknown",
         "payment_status": getattr(session, "payment_status", "unknown") or "unknown",
     }
+
+
+def _credits_for_plan(plan: str, is_subscriber: bool) -> int:
+    """Same logic as grant_credits: credits to grant for a plan."""
+    credits = PLAN_CREDITS.get(plan, 0)
+    if not credits:
+        return 0
+    if plan.startswith("topup") and is_subscriber:
+        credits = int(credits * (1 + SUBSCRIBER_BONUS))
+    return credits
+
+
+def fulfill_checkout_session(stripe_session_id: str, db: Session) -> bool:
+    """
+    Idempotent fulfillment: if the Stripe session is paid and not yet fulfilled,
+    grant credits and set plan. Returns True if we fulfilled (or already had been),
+    False if session not paid or missing user.
+    """
+    if not STRIPE_SECRET_KEY:
+        raise ValueError("STRIPE_SECRET_KEY is not set.")
+    stripe.api_key = STRIPE_SECRET_KEY
+    session = stripe.checkout.Session.retrieve(stripe_session_id)
+    payment_status = getattr(session, "payment_status", None) or ""
+    if payment_status != "paid":
+        return False
+    metadata = getattr(session, "metadata", None) or {}
+    user_id = metadata.get("user_id")
+    plan = metadata.get("plan", "monthly")
+
+    try:
+        db.execute(
+            text(
+                "INSERT INTO stripe_checkout_fulfilled (stripe_session_id) VALUES (:id)"
+            ),
+            {"id": stripe_session_id},
+        )
+    except IntegrityError:
+        db.rollback()
+        return True
+
+    effective_user_id: str | None = None
+    credits_granted = 0
+
+    if user_id:
+        is_subscriber = get_user_plan(db, user_id) in (
+            "monthly_basic",
+            "monthly_pro",
+            "monthly",
+        )
+        credits_granted = _credits_for_plan(plan, is_subscriber)
+        grant_credits(db, user_id, plan, is_subscriber)
+        set_user_plan(db, user_id, plan)
+        effective_user_id = user_id
+    else:
+        session_id_raw = metadata.get("session_id")
+        if session_id_raw:
+            try:
+                sid = UUID(session_id_raw)
+            except ValueError:
+                db.rollback()
+                return False
+            from app.services.session_service import get_session
+
+            session_rec = get_session(db, sid)
+            if session_rec and session_rec.user_id:
+                is_subscriber = get_user_plan(db, session_rec.user_id) in (
+                    "monthly_basic",
+                    "monthly_pro",
+                    "monthly",
+                )
+                credits_granted = _credits_for_plan(plan, is_subscriber)
+                set_user_plan(db, session_rec.user_id, plan)
+                grant_credits(db, session_rec.user_id, plan, is_subscriber)
+                effective_user_id = session_rec.user_id
+            else:
+                set_subscription_active(sid, plan)
+
+    # Record user_id, credits_granted, and payment_intent for refund handling
+    payment_intent_id = getattr(session, "payment_intent", None) or (
+        session.get("payment_intent") if isinstance(session, dict) else None
+    )
+    if isinstance(payment_intent_id, str):
+        pass
+    elif hasattr(payment_intent_id, "id"):
+        payment_intent_id = payment_intent_id.id if payment_intent_id else None
+    else:
+        payment_intent_id = None
+
+    db.execute(
+        text(
+            "UPDATE stripe_checkout_fulfilled SET user_id = :uid, credits_granted = :credits, stripe_payment_intent_id = :pi WHERE stripe_session_id = :sid"
+        ),
+        {
+            "uid": effective_user_id,
+            "credits": credits_granted,
+            "pi": payment_intent_id,
+            "sid": stripe_session_id,
+        },
+    )
+    db.commit()
+    return True
+
+
+def handle_charge_refunded(charge_id: str, db: Session) -> None:
+    """
+    On charge.refunded: look up fulfillment by payment_intent, deduct credits
+    from the user's one_time_credits, and zero out credits_granted (idempotent).
+    """
+    if not STRIPE_SECRET_KEY:
+        return
+    stripe.api_key = STRIPE_SECRET_KEY
+    charge = stripe.Charge.retrieve(charge_id)
+    payment_intent_id = getattr(charge, "payment_intent", None)
+    if not payment_intent_id:
+        return
+    if hasattr(payment_intent_id, "id"):
+        payment_intent_id = payment_intent_id.id
+
+    row = db.execute(
+        text(
+            "SELECT user_id, credits_granted FROM stripe_checkout_fulfilled WHERE stripe_payment_intent_id = :pi AND credits_granted > 0"
+        ),
+        {"pi": payment_intent_id},
+    ).fetchone()
+    if not row:
+        return
+    user_id_val = row[0]
+    credits = int(row[1] or 0)
+    if not user_id_val or credits <= 0:
+        return
+
+    # Deduct from one_time_credits (topups go there); cap at current balance
+    table = _users_table()
+    current = db.execute(
+        text(f"SELECT one_time_credits FROM {table} WHERE id = :id"),
+        {"id": user_id_val},
+    ).fetchone()
+    if not current:
+        return
+    deduct = min(credits, int(current[0] or 0))
+    if deduct <= 0:
+        db.execute(
+            text(
+                "UPDATE stripe_checkout_fulfilled SET credits_granted = 0 WHERE stripe_payment_intent_id = :pi"
+            ),
+            {"pi": payment_intent_id},
+        )
+        db.commit()
+        return
+    db.execute(
+        text(f"UPDATE {table} SET one_time_credits = one_time_credits - :amt WHERE id = :id"),
+        {"amt": deduct, "id": user_id_val},
+    )
+    db.execute(
+        text(
+            "UPDATE stripe_checkout_fulfilled SET credits_granted = 0 WHERE stripe_payment_intent_id = :pi"
+        ),
+        {"pi": payment_intent_id},
+    )
+    db.commit()
 
 
 def verify_stripe_signature(payload: bytes, signature: str) -> stripe.Event:

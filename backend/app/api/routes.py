@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Dict, Optional
+
+import stripe
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -57,10 +59,11 @@ from app.services.refresh_queue import enqueue_refresh, get_job
 from app.config import STRIPE_WEBHOOK_BYPASS, AUTH_SCHEMA, INTERNAL_API_KEY
 from app.services.payment_service import (
     create_checkout_session,
+    fulfill_checkout_session,
     get_checkout_session_status,
+    handle_charge_refunded,
     get_subscription_status,
     get_user_plan,
-    grant_credits,
     set_subscription_active,
     set_user_plan,
     verify_stripe_signature,
@@ -104,6 +107,7 @@ from app.services.cover_letter_service import (
 )
 from app.services.analysis_service import persist_match_analysis
 from app.rate_limiter import limiter
+from app.services.payment_service import fulfill_checkout_session
 from pprint import pprint
 
 router = APIRouter()
@@ -696,6 +700,22 @@ def get_checkout_status(session_id: str) -> CheckoutStatusResponse:
     )
 
 
+@router.post("/api/checkout/fulfill")
+def post_checkout_fulfill(session_id: str, db: Session = Depends(get_db)) -> Dict[str, object]:
+    """
+    Idempotent fulfillment: if the Stripe checkout session is paid, grant credits
+    and set plan (if not already done). Call this after redirect from Stripe
+    so the user gets credits even if the webhook has not run yet.
+    """
+    try:
+        fulfilled = fulfill_checkout_session(session_id, db)
+        return {"fulfilled": fulfilled}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.post("/api/analyze", response_model=AnalyzeResponse)
 @limiter.limit("10/minute")
 def analyze_selections(
@@ -856,7 +876,7 @@ async def stripe_webhook(
                 set_subscription_active(sid, plan)
         return {"status": "ok"}
 
-    print(payload)
+    pprint(payload)
     try:
         event = verify_stripe_signature(payload, signature)
     except Exception as exc:
@@ -864,28 +884,9 @@ async def stripe_webhook(
 
     if event["type"] == "checkout.session.completed":
         session_obj = event["data"]["object"]
-        metadata = session_obj.get("metadata") or {}
-        user_id = metadata.get("user_id")
-        plan = metadata.get("plan", "monthly")
-        if user_id:
-            is_subscriber = get_user_plan(db, user_id) in ("monthly_basic", "monthly_pro", "monthly")
-            grant_credits(db, user_id, plan, is_subscriber)
-            set_user_plan(db, user_id, plan)
-        else:
-            session_id_raw = metadata.get("session_id")
-            if session_id_raw:
-                sid = UUID(session_id_raw)
-                session_rec = get_session(db, sid)
-                if session_rec and session_rec.user_id:
-                    set_user_plan(db, session_rec.user_id, plan)
-                    is_subscriber = get_user_plan(db, session_rec.user_id) in (
-                        "monthly_basic",
-                        "monthly_pro",
-                        "monthly",
-                    )
-                    grant_credits(db, session_rec.user_id, plan, is_subscriber)
-                else:
-                    set_subscription_active(sid, plan)
+        stripe_session_id = session_obj.get("id")
+        if stripe_session_id:
+            fulfill_checkout_session(stripe_session_id, db)
         return {"status": "ok"}
 
     if event["type"] == "invoice.paid":
@@ -914,6 +915,16 @@ async def stripe_webhook(
         user_id = metadata.get("user_id")
         if user_id:
             set_user_plan(db, user_id, "free")
+        return {"status": "ok"}
+
+    if event["type"] == "charge.refunded":
+        charge = event["data"]["object"]
+        charge_id = charge.get("id")
+        if charge_id:
+            try:
+                handle_charge_refunded(charge_id, db)
+            except Exception:
+                pass
         return {"status": "ok"}
 
     return {"status": "ok"}
