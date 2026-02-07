@@ -61,16 +61,25 @@ _APP_TABLES_IN_DROP_ORDER = [
 ]
 
 
+def _schemas_to_clean() -> list[str]:
+    """Return list of schema names to clean (env AUTH_SCHEMA + next_auth)."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for name in (_auth_schema_name(), "next_auth"):
+        if name and name != "public" and name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
 def upgrade() -> None:
     if not _is_postgres():
         return
-    schema_name = _auth_schema_name()
-    if not schema_name:
-        return
     bind = op.get_bind()
-    for table_name in _APP_TABLES_IN_DROP_ORDER:
-        if _table_exists_in_schema(bind, table_name, schema_name):
-            op.drop_table(table_name, schema=schema_name)
+    for schema_name in _schemas_to_clean():
+        for table_name in _APP_TABLES_IN_DROP_ORDER:
+            if _table_exists_in_schema(bind, table_name, schema_name):
+                op.drop_table(table_name, schema=schema_name)
 
 
 def downgrade() -> None:
