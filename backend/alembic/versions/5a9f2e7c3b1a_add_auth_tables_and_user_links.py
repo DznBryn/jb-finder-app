@@ -33,6 +33,14 @@ def _auth_schema_name() -> str | None:
     return schema
 
 
+def _table_exists(table_name: str, schema: str | None) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if schema:
+        return table_name in inspector.get_table_names(schema=schema)
+    return table_name in inspector.get_table_names()
+
+
 def _column_exists(table_name: str, column_name: str) -> bool:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -54,33 +62,35 @@ def upgrade() -> None:
         op.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
         if schema_name:
             op.execute(sa.text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
-        op.create_table(
-            "users",
-            sa.Column(
-                "id",
-                sa.Text(),
-                primary_key=True,
-                server_default=sa.text("gen_random_uuid()"),
-            ),
-            sa.Column("name", sa.Text(), nullable=True),
-            sa.Column("email", sa.Text(), nullable=True, unique=True),
-            sa.Column("emailVerified", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("image", sa.Text(), nullable=True),
-            sa.Column("user_type", sa.String(8), nullable=False, server_default="U"),
-            sa.Column(
-                "subscription_credits",
-                sa.Integer(),
-                nullable=False,
-                server_default="0",
-            ),
-            sa.Column("one_time_credits", sa.Integer(), nullable=False, server_default="0"),
-            sa.Column("signup_bonus_granted_at", sa.DateTime(timezone=True), nullable=True),
-            schema=schema_name,
-        )
+        if not _table_exists("users", schema_name):
+            op.create_table(
+                "users",
+                sa.Column(
+                    "id",
+                    sa.Text(),
+                    primary_key=True,
+                    server_default=sa.text("gen_random_uuid()"),
+                ),
+                sa.Column("name", sa.Text(), nullable=True),
+                sa.Column("email", sa.Text(), nullable=True, unique=True),
+                sa.Column("emailVerified", sa.DateTime(timezone=True), nullable=True),
+                sa.Column("image", sa.Text(), nullable=True),
+                sa.Column("user_type", sa.String(8), nullable=False, server_default="U"),
+                sa.Column(
+                    "subscription_credits",
+                    sa.Integer(),
+                    nullable=False,
+                    server_default="0",
+                ),
+                sa.Column("one_time_credits", sa.Integer(), nullable=False, server_default="0"),
+                sa.Column("signup_bonus_granted_at", sa.DateTime(timezone=True), nullable=True),
+                schema=schema_name,
+            )
 
-        op.create_table(
-            "accounts",
-            sa.Column(
+        if not _table_exists("accounts", schema_name):
+            op.create_table(
+                "accounts",
+                sa.Column(
                 "userId",
                 sa.Text(),
                 sa.ForeignKey(user_fk, ondelete="CASCADE"),
@@ -98,30 +108,32 @@ def upgrade() -> None:
             sa.Column("session_state", sa.Text(), nullable=True),
             sa.PrimaryKeyConstraint("provider", "providerAccountId"),
             schema=schema_name,
-        )
+            )
 
-        op.create_table(
-            "sessions",
-            sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
-            sa.Column("sessionToken", sa.Text(), nullable=False, unique=True),
-            sa.Column(
-                "userId",
-                sa.Text(),
-                sa.ForeignKey(user_fk, ondelete="CASCADE"),
-                nullable=False,
-            ),
-            sa.Column("expires", sa.DateTime(timezone=True), nullable=False),
-            schema=schema_name,
-        )
+        if not _table_exists("sessions", schema_name):
+            op.create_table(
+                "sessions",
+                sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+                sa.Column("sessionToken", sa.Text(), nullable=False, unique=True),
+                sa.Column(
+                    "userId",
+                    sa.Text(),
+                    sa.ForeignKey(user_fk, ondelete="CASCADE"),
+                    nullable=False,
+                ),
+                sa.Column("expires", sa.DateTime(timezone=True), nullable=False),
+                schema=schema_name,
+            )
 
-        op.create_table(
-            "verification_token",
-            sa.Column("identifier", sa.Text(), nullable=False),
-            sa.Column("token", sa.Text(), nullable=False),
-            sa.Column("expires", sa.DateTime(timezone=True), nullable=False),
-            sa.PrimaryKeyConstraint("identifier", "token"),
-            schema=schema_name,
-        )
+        if not _table_exists("verification_token", schema_name):
+            op.create_table(
+                "verification_token",
+                sa.Column("identifier", sa.Text(), nullable=False),
+                sa.Column("token", sa.Text(), nullable=False),
+                sa.Column("expires", sa.DateTime(timezone=True), nullable=False),
+                sa.PrimaryKeyConstraint("identifier", "token"),
+                schema=schema_name,
+            )
 
     if not _column_exists("sessions", "user_id"):
         op.add_column("sessions", sa.Column("user_id", sa.String(36), nullable=True))

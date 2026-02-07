@@ -22,6 +22,8 @@ if load_dotenv is not None:
 
 print(f"[alembic] AUTH_SCHEMA={os.getenv('AUTH_SCHEMA')}")
 
+from sqlalchemy import text
+
 from app.config import DATABASE_URL  # noqa: E402
 from app.db import Base  # noqa: E402
 from app.models import db_models  # noqa: F401, E402
@@ -56,6 +58,10 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Ensure app tables are always created in public. Only the auth migration
+        # explicitly uses AUTH_SCHEMA for users/accounts/sessions/verification_token.
+        if connectable.dialect.name == "postgresql":
+            connection.execute(text("SET search_path TO public"))
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
