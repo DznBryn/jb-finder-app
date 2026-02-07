@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.db_models import JobSelection, ResumeSessionRecord
@@ -149,14 +150,32 @@ def increment_daily_selection(
     return True, max(0, limit - record.daily_selections)
 
 
-def save_job_selections(db: Session, session_id: UUID, job_ids: list[str]) -> None:
-    """Persist job selections for a session."""
+def save_job_selections(
+    db: Session, session_id: UUID, job_ids: list[str], user_id: Optional[str] = None
+) -> None:
+    """Persist job selections for a session and (optionally) a user."""
+
+    unique_job_ids = list(dict.fromkeys(job_ids))
+    session_key = str(session_id)
+
+    if user_id:
+        db.query(JobSelection).filter(
+            or_(
+                JobSelection.user_id == user_id,
+                and_(JobSelection.session_id == session_key, JobSelection.user_id == None),
+            )
+        ).delete(synchronize_session=False)
+    else:
+        db.query(JobSelection).filter(
+            JobSelection.session_id == session_key, JobSelection.user_id == None
+        ).delete(synchronize_session=False)
 
     now = _now_utc()
-    for job_id in job_ids:
+    for job_id in unique_job_ids:
         db.add(
             JobSelection(
-                session_id=str(session_id),
+                session_id=session_key,
+                user_id=user_id,
                 job_id=job_id,
                 created_at=now,
             )
@@ -164,12 +183,18 @@ def save_job_selections(db: Session, session_id: UUID, job_ids: list[str]) -> No
     db.commit()
 
 
-def list_job_selections(db: Session, session_id: UUID) -> list[str]:
-    """Return selected job IDs for a session."""
+def list_job_selections(
+    db: Session, session_id: UUID, user_id: Optional[str] = None
+) -> list[str]:
+    """Return selected job IDs for a session or user."""
 
-    rows = (
-        db.query(JobSelection)
-        .filter(JobSelection.session_id == str(session_id))
-        .all()
-    )
-    return [row.job_id for row in rows]
+    query = db.query(JobSelection)
+    if user_id:
+        query = query.filter(JobSelection.user_id == user_id)
+    else:
+        query = query.filter(
+            JobSelection.session_id == str(session_id),
+            JobSelection.user_id == None,
+        )
+    rows = query.order_by(JobSelection.created_at.asc()).all()
+    return list(dict.fromkeys([row.job_id for row in rows]))

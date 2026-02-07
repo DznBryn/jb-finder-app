@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { signIn, useSession as useAuthSession } from "next-auth/react";
 import { useSession } from "../session-context";
+import SignupPrompt from "@/components/SignupPrompt";
 import type {
   ApplyResult,
   GreenhouseField,
@@ -67,6 +69,7 @@ function initFormState(job: GreenhouseJob, profile: SessionProfile | null): JobF
 }
 
 export default function ApplyPage() {
+  const { status: authStatus, data: authData } = useAuthSession();
   const {
     sessionProfile,
     setSessionProfile,
@@ -85,6 +88,18 @@ export default function ApplyPage() {
     Record<string, ApplyResult | null>
   >({});
   const [tone, setTone] = useState("concise");
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+
+  const getCallbackUrl = () =>
+    typeof window === "undefined" ? "/apply" : window.location.href;
+
+  const requireAuthForLlm = () => {
+    if (authStatus === "unauthenticated") {
+      setShowSignupPrompt(true);
+      return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     if (sessionProfile?.session_id) {
@@ -115,9 +130,12 @@ export default function ApplyPage() {
     if (!sessionId) return;
     setLoadingJobs(true);
     try {
-      const response = await fetch(
-        `/api/jobs/selected/details?session_id=${sessionId}`
-      );
+      const params = new URLSearchParams({ session_id: sessionId });
+      const userId = (authData?.user as { id?: string } | undefined)?.id;
+      if (authStatus === "authenticated" && userId) {
+        params.set("user_id", userId);
+      }
+      const response = await fetch(`/api/jobs/selected/details?${params.toString()}`);
       if (!response.ok) return;
       const data = (await response.json()) as { jobs: SelectedJob[] };
       setJobs(data.jobs);
@@ -300,6 +318,7 @@ export default function ApplyPage() {
 
   const prepareApply = async (jobId: string) => {
     if (!sessionId) return;
+    if (requireAuthForLlm()) return;
     const response = await fetch("/api/apply/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -316,6 +335,14 @@ export default function ApplyPage() {
 
   return (
     <main className="space-y-6">
+      <SignupPrompt
+        open={showSignupPrompt}
+        onOpenChange={setShowSignupPrompt}
+        onGoogle={() => signIn("google", { callbackUrl: getCallbackUrl() })}
+        onLinkedIn={() => signIn("linkedin", { callbackUrl: getCallbackUrl() })}
+        title="Save your progress"
+        message="Create an account to save your session and use assisted apply with your selected jobs."
+      />
       <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
         <h1 className="text-2xl font-semibold text-white">Assisted apply</h1>
         <p className="mt-2 text-sm text-slate-300">

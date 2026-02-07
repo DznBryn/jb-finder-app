@@ -8,6 +8,8 @@ type SignupPromptProps = {
   onOpenChange: (open: boolean) => void;
   onGoogle: () => void;
   onLinkedIn: () => void;
+  title?: string;
+  message?: string;
 };
 
 export default function SignupPrompt({
@@ -15,19 +17,17 @@ export default function SignupPrompt({
   onOpenChange,
   onGoogle,
   onLinkedIn,
+  title = "Save your progress",
+  message = "Create an account to save your session and unlock more features.",
 }: SignupPromptProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Save your progress</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 text-sm text-slate-300">
-          <p>
-            Create an account to save your session and unlock morefeatures.
-            Get <span className="font-semibold text-emerald-300">+100 free credits</span>{" "}
-            on signup.
-          </p>
+          <p>{message}</p>
           <div className="flex flex-col gap-2">
             <Button onClick={onGoogle}>Continue with Google</Button>
             <Button variant="secondary" onClick={onLinkedIn}>

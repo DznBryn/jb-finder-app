@@ -10,6 +10,7 @@ import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
 import { CheckoutModal } from "./CheckoutModal";
 import { Spinner } from "./ui/spinner";
 import Footer from "./Footer";
+import AppHeader from "./AppHeader";
 
 export default function AuthLayout({
   children,
@@ -95,9 +96,10 @@ export default function AuthLayout({
     );
   }
 
-  // Not authenticated: full-width layout without sidebar
+  // Not authenticated: full-width layout without sidebar, with transparent header
   return (
-    <main className="min-h-svh w-full flex flex-col px-4 md:px-6">
+    <main className="min-h-svh w-full flex flex-col">
+      <AppHeader />
       <div className="flex-1 min-h-0">
         {children}
       </div>

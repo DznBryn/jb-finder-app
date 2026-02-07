@@ -53,7 +53,7 @@ export default function AnalysisPage() {
   }, [resumes]);
 
    return (
-     <div className="space-y-6">
+    <div className="space-y-6">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
          <h1 className="text-2xl font-semibold text-white">
            Analyzed job posts
