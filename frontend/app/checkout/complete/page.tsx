@@ -37,13 +37,17 @@ export default function CheckoutCompletePage() {
           status?: string;
           payment_status?: string;
         };
-        if (data.payment_status === "paid" || data.status === "complete") {
-          setStatus("success");
-          await hydrateUserBase();
-        } else {
-          setStatus("success");
-          await hydrateUserBase();
+        const paid =
+          data.payment_status === "paid" || data.status === "complete";
+        if (paid) {
+          // Fulfill on redirect so user gets credits even if webhook hasn't run
+          await fetch(
+            `/api/checkout/fulfill?session_id=${encodeURIComponent(sessionId)}`,
+            { method: "POST" }
+          );
         }
+        setStatus("success");
+        await hydrateUserBase();
       } catch {
         if (!cancelled) setStatus("error");
       }
