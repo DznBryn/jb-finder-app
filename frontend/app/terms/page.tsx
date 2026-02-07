@@ -56,7 +56,7 @@ export default function TermsPage() {
           <ul className="mt-1 list-inside list-disc space-y-1 text-slate-300">
             <li>Upload resumes for parsing and analysis</li>
             <li>
-              View job matches sourced from public ATS APIs (e.g., Greenhouse)
+              View job matches sourced from public job boards from companies we know are hiring
             </li>
             <li>
               Generate AI-assisted resume insights and cover letter drafts
