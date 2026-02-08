@@ -18,18 +18,30 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists_in_public(bind, name: str) -> bool:
+    r = bind.execute(
+        sa.text(
+            "SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = :t"
+        ),
+        {"t": name},
+    )
+    return r.scalar() is not None
+
+
 def upgrade() -> None:
     bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    existing = set(inspector.get_table_names())
-    if "stripe_checkout_fulfilled" in existing:
+    if bind.dialect.name != "postgresql":
+        return
+    if _table_exists_in_public(bind, "stripe_checkout_fulfilled"):
         return
     op.create_table(
         "stripe_checkout_fulfilled",
         sa.Column("stripe_session_id", sa.String(255), nullable=False),
         sa.PrimaryKeyConstraint("stripe_session_id"),
+        schema="public",
     )
 
 
 def downgrade() -> None:
-    op.drop_table("stripe_checkout_fulfilled", if_exists=True)
+    op.drop_table("stripe_checkout_fulfilled", schema="public", if_exists=True)
