@@ -248,7 +248,7 @@ export default function MatchesSection({
     });
    
     return (
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 w-full max-w-full">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 w-full max-w-full md:p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Top matches</h3>
@@ -369,7 +369,7 @@ export default function MatchesSection({
     return pages;
   };
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 w-full max-w-full">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-1 w-full max-w-full md:p-4">
       {matchesError ? (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
           {matchesError}
