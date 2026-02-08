@@ -29,8 +29,10 @@ INDUSTRY_CHOICES = [
     "nonprofit",
 ]
 
+class PublicSchemaMixin:
+    __table_args__ = {"schema": "public"}
 
-class ResumeSessionRecord(Base):
+class ResumeSessionRecord(Base, PublicSchemaMixin):
     """Database model for a resume upload session (app session, not NextAuth session)."""
 
     __tablename__ = "resume_sessions"
@@ -60,7 +62,7 @@ class ResumeSessionRecord(Base):
     plan: Mapped[str] = mapped_column(String(16), default="free")
 
 
-class ResumeRecord(Base):
+class ResumeRecord(Base, PublicSchemaMixin):
     """User-scoped resume (session-like data without session_id or plan)."""
 
     __tablename__ = "resumes"
@@ -88,7 +90,7 @@ class ResumeRecord(Base):
     daily_selection_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
 
 
-class JobSelection(Base):
+class JobSelection(Base, PublicSchemaMixin):
     """Database model for job selections tied to a session."""
 
     __tablename__ = "job_selections"
@@ -100,7 +102,7 @@ class JobSelection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
-class Company(Base):
+class Company(Base, PublicSchemaMixin):
     """Database model for ATS company tokens."""
 
     __tablename__ = "companies"
@@ -112,7 +114,7 @@ class Company(Base):
     industry: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
 
-class JobListing(Base):
+class JobListing(Base, PublicSchemaMixin):
     """Database model for ATS job postings."""
 
     __tablename__ = "jobs"
@@ -137,7 +139,7 @@ class JobListing(Base):
     industry: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
 
-class AnalysisUsage(Base):
+class AnalysisUsage(Base, PublicSchemaMixin):
     """Track analysis usage for free/pro limits."""
 
     __tablename__ = "analysis_usage"
@@ -151,7 +153,7 @@ class AnalysisUsage(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime)
 
 
-class DeepAnalysisRecord(Base):
+class DeepAnalysisRecord(Base, PublicSchemaMixin):
     """Persist deep analysis results per session and job."""
 
     __tablename__ = "deep_analysis"
@@ -164,7 +166,7 @@ class DeepAnalysisRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
 
 
-class CoverLetterDocument(Base):
+class CoverLetterDocument(Base, PublicSchemaMixin):
     """Cover letter document keyed by session and job."""
 
     __tablename__ = "cover_letter_documents"
@@ -179,7 +181,7 @@ class CoverLetterDocument(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime)
 
 
-class CoverLetterVersion(Base):
+class CoverLetterVersion(Base, PublicSchemaMixin):
     """Version history for cover letter documents."""
 
     __tablename__ = "cover_letter_versions"
@@ -199,7 +201,7 @@ class CoverLetterVersion(Base):
     result_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
 
-class RefreshJob(Base):
+class RefreshJob(Base, PublicSchemaMixin):
     """Queue table for background refresh jobs."""
 
     __tablename__ = "refresh_jobs"

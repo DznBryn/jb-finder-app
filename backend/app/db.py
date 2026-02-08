@@ -23,7 +23,7 @@ Base = declarative_base()
 
 def init_db() -> None:
     """Create database tables if they do not exist."""
-
+    
     Base.metadata.create_all(bind=engine)
 
 
@@ -38,6 +38,8 @@ def get_db() -> Generator[Session, None, None]:
     """
 
     db = SessionLocal()
+    search_path = db.execute(text("show search_path")).scalar()
+    print(f"Search path: {search_path}")
     try:
         if _is_pg:
             db.execute(text("SET LOCAL search_path TO public"))
