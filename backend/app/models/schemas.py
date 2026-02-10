@@ -157,6 +157,19 @@ class SelectedJobsResponse(BaseModel):
     jobs: List[SelectedJobDetail]
 
 
+class UserResumesDeleteRequest(BaseModel):
+    """Payload to delete user resumes. user_id set by server proxy; resume_ids from client."""
+
+    user_id: str = Field(..., description="Authenticated user ID (set by server proxy).")
+    resume_ids: List[str] = Field(..., description="Resume record IDs to delete.")
+
+
+class UserResumesDeleteResponse(BaseModel):
+    """Response after deleting resumes."""
+
+    deleted: int = Field(..., description="Number of resume records deleted.")
+
+
 class CheckoutRequest(BaseModel):
     """Payload to start a Stripe Checkout session. user_id is set by the server when proxying."""
 

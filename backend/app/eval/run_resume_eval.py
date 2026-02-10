@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Dict, List
 
-from app.services.llm_service import parse_resume_text
+from app.services.ai.llm_service import parse_resume_text
 
 
 def _normalize(value: str) -> str:

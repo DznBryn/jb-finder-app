@@ -21,6 +21,13 @@ def _safe_filename(filename: str) -> str:
 def _supabase_enabled() -> bool:
     return bool(SUPABASE_URL and SUPABASE_SERVICE_KEY and SUPABASE_STORAGE_BUCKET)
 
+def _normalize_storage_key(key: str) -> str:
+    # treat as logical storage key, not filesystem path
+    key = key.replace("\\", "/")  # normalize Windows separators
+    key = key.lstrip("/")         # prevent absolute-path semantics
+    key = key.removeprefix("uploads/")
+    return f"uploads/{key}"
+
 
 def _upload_to_supabase_storage(
     filename: str, content: bytes, overwrite_key: Optional[str] = None
@@ -33,31 +40,39 @@ def _upload_to_supabase_storage(
     - Uses `SUPABASE_SERVICE_KEY` (server-only).
     - Stores into bucket `SUPABASE_STORAGE_BUCKET` (default: `resumes`).
     """
+    
     try:
-        from supabase import create_client  # type: ignore
-    except Exception as exc:  # pragma: no cover
+        from supabase import create_client  
+    except Exception as exc:
         raise RuntimeError(
             "Supabase Storage is configured but the `supabase` package is not installed. "
             "Add `supabase` to backend/requirements.txt."
         ) from exc
 
     safe_name = _safe_filename(filename)
+
     if overwrite_key:
         object_key = overwrite_key
     else:
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
         object_key = f"uploads/{timestamp}_{safe_name}"
 
     client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
     file_options = {"upsert": "true"} if overwrite_key else None
+    
     response = client.storage.from_(SUPABASE_STORAGE_BUCKET).upload(
         object_key, content, file_options=file_options
     )
+    
     error = getattr(response, "error", None)
+    
     if error is None and isinstance(response, dict):
         error = response.get("error")
+    
     if error:
         raise RuntimeError(f"Supabase upload failed: {error}")
+    
     return object_key
 
 
@@ -82,12 +97,57 @@ def save_resume_file(
 
     storage_dir = Path(__file__).resolve().parent.parent / "storage"
     storage_dir.mkdir(parents=True, exist_ok=True)
+
     safe_name = _safe_filename(filename)
+    
     if overwrite_key:
-        key_path = Path(overwrite_key)
-        target_path = key_path if key_path.is_absolute() else storage_dir / overwrite_key.lstrip("uploads/")
+        storage_key = _normalize_storage_key(overwrite_key)
+        target_path = (storage_dir / storage_key).resolve()
+
+        # enforce containment: target must be inside storage_dir
+        base = storage_dir.resolve()
+        if base not in target_path.parents and target_path != base:
+            raise ValueError("Invalid overwrite_key (path traversal)")
+
         target_path.parent.mkdir(parents=True, exist_ok=True)
     else:
         target_path = storage_dir / safe_name
+
     target_path.write_bytes(content)
+    
     return str(target_path)
+
+
+def delete_resume_file(key: Optional[str]) -> None:
+    """Delete a resume file from storage by key. No-op if key is None or empty."""
+
+    if not (key and key.strip()):
+        return
+
+    key = key.strip()
+
+    if _supabase_enabled():
+        try:
+            from supabase import create_client
+        except Exception as exc:
+            raise RuntimeError(
+                "Supabase Storage is configured but the `supabase` package is not installed. "
+                "Add `supabase` to backend/requirements.txt."
+            ) from exc
+        client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        object_key = _normalize_storage_key(key)
+        try:
+            client.storage.from_(SUPABASE_STORAGE_BUCKET).remove([object_key])
+        except Exception:
+            pass
+        return
+
+    if S3_BUCKET:
+        return  # placeholder: no S3 delete implemented yet
+
+    storage_dir = Path(__file__).resolve().parent.parent / "storage"
+    storage_key = _normalize_storage_key(key)
+    target_path = (storage_dir / storage_key).resolve()
+    base = storage_dir.resolve()
+    if base in target_path.parents or target_path == base:
+        target_path.unlink(missing_ok=True)

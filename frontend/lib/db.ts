@@ -6,8 +6,7 @@ const AUTH_SCHEMA = "next_auth";
 const authDbUrl = process.env.AUTH_DATABASE_URL;
 const appDbUrl =
   process.env.APP_DATABASE_URL ||
-  process.env.DATABASE_URL ||
-  process.env.AUTH_DATABASE_URL;
+  process.env.DATABASE_URL;
 
 if (!authDbUrl) {
   throw new Error("AUTH_DATABASE_URL is not set.");

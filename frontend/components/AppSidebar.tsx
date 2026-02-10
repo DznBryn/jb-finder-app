@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Briefcase, Coins, Home, LineChart, ListChecks, UserPlus } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Briefcase, Coins, FileText, Home, UserPlus } from "lucide-react";
 
 import {
   Sidebar,
@@ -26,6 +27,7 @@ import { useUserBaseStore } from "@/lib/userBaseStore";
 
 
 export default function AppSidebar() {
+  const pathname = usePathname();
   const wallet = useUserBaseStore((s) => s.userBase?.wallet);
   const totalCredits =
     (wallet?.subscription_credits ?? 0) + (wallet?.one_time_credits ?? 0);
@@ -44,7 +46,7 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive
+                  isActive={pathname === "/"}
                   tooltip="Home"
                   className="text-slate-200 hover:bg-slate-800/60 data-[active=true]:bg-slate-800/70"
                 >
@@ -62,49 +64,8 @@ export default function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  tooltip="Assisted apply"
-                  className="text-slate-200 hover:bg-slate-800/60"
-                >
-                  <Link
-                    href="/apply"
-                    className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
-                  >
-                    <ListChecks className="h-4 w-4" />
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      Assisted apply
-                    </span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip="Analysis"
-                  className="text-slate-200 hover:bg-slate-800/60"
-                >
-                  <Link
-                    href="/analysis"
-                    className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
-                  >
-                    <LineChart className="h-4 w-4" />
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      Analysis
-                    </span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-slate-400">Resources</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  tooltip="Top picks"
+                  isActive={pathname === "/jobs"}
+                  tooltip="Matches"
                   className="text-slate-200 hover:bg-slate-800/60"
                 >
                   <Link
@@ -113,7 +74,25 @@ export default function AppSidebar() {
                   >
                     <Briefcase className="h-4 w-4" />
                     <span className="group-data-[collapsible=icon]:hidden">
-                      Top picks
+                      Matches
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/resumes"}
+                  tooltip="Resumes"
+                  className="text-slate-200 hover:bg-slate-800/60"
+                >
+                  <Link
+                    href="/resumes"
+                    className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      Resumes
                     </span>
                   </Link>
                 </SidebarMenuButton>

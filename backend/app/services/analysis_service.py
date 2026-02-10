@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import LLM_SKILL_EXTRACT_MAX_WORKERS
 from app.models.db_models import DeepAnalysisRecord, JobListing, ResumeSessionRecord
-from app.services.llm_service import (
+from app.services.ai.llm_service import (
     analyze_job_matches,
     extract_job_skills,
     generate_learning_resources,

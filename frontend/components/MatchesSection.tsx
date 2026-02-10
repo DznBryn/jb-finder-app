@@ -181,7 +181,9 @@ export default function MatchesSection({
       string,
       { job_id: string; title: string; company: string; location: string; apply_url: string }
     > = {};
+    
     const ids: string[] = [];
+
     resumes.forEach((resume) => {
       (resume.analyzed_jobs ?? []).forEach((job) => {
         if (!results[job.job_id]) {
@@ -221,17 +223,17 @@ export default function MatchesSection({
   }, [resumes]);
 
   const useStoreAnalysis = status === "authenticated" && resumes.length > 0;
-  // Merge session analysis (current page) on top of store so "Analyze selections" results show immediately
+
   const displayAnalysisResults = useStoreAnalysis
     ? { ...storeAnalysis.results, ...analysisResults }
     : analysisResults;
-  const displayAnalyzedJobIds = useStoreAnalysis
-    ? [...new Set([...storeAnalysis.ids, ...analyzedJobIds])]
-    : analyzedJobIds;
+
   const displayAnalyzedJobDetails = useStoreAnalysis
     ? { ...storeAnalysis.details, ...analyzedJobDetails }
     : analyzedJobDetails;
+
   const normalizedTitle = filterTitleTerms.trim().toLowerCase();
+
   const selectedTitle =
     titleOptions.find((option) => option.title.trim().toLowerCase() === normalizedTitle)
       ?.title ?? "";
@@ -240,6 +242,7 @@ export default function MatchesSection({
     if (loadingMatches) {
       return <MatchesSkeleton />;
     }
+
     const analyzedEntries = Object.values(displayAnalyzedJobDetails).sort((a, b) => {
       const gradeOrder = ["A", "B", "C", "D"];
       const aGrade = (displayAnalysisResults[a.job_id]?.grade ?? "D").toUpperCase();
@@ -248,7 +251,7 @@ export default function MatchesSection({
     });
    
     return (
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 w-full max-w-full p-2 md:p-4">
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 w-full max-w-full p-4 md:p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-white">Top matches</h3>
@@ -368,8 +371,10 @@ export default function MatchesSection({
     }
     return pages;
   };
+
+
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-1 w-full max-w-full p-2md:p-4">
+    <section className="rounded-2xl border border-slate-800 bg-slate-900/60 w-full max-w-full p-2">
       {matchesError ? (
         <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
           {matchesError}
@@ -377,7 +382,7 @@ export default function MatchesSection({
       ) : null}
 
       {hasLoadedMatches ? (
-        <div className={matchesError ? "mt-4 space-y-3" : "space-y-3"}>
+        <div className={`${matchesError ? "mt-4 space-y-3" : "space-y-3"} p-2`}>
           <h3 className="text-lg font-semibold text-white">Top matches</h3>
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span>
