@@ -8,7 +8,6 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.db_models import JobSelection, ResumeSessionRecord
-from pprint import pprint
 
 
 def _now_utc() -> datetime:
@@ -36,6 +35,7 @@ def create_session(
     location: Optional[str],
     social_links: list,
     user_id: Optional[str] = None,
+    uploaded_filename: Optional[str] = None,
 ) -> ResumeSessionRecord:
     """Persist a new session record for the uploaded resume."""
 
@@ -46,6 +46,7 @@ def create_session(
         resume_text=resume_text,
         resume_s3_key=resume_s3_key,
         resume_content_hash=resume_content_hash,
+        uploaded_filename=uploaded_filename,
         extracted_skills=extracted_skills,
         inferred_titles=inferred_titles,
         seniority=seniority,
@@ -72,7 +73,9 @@ def create_session(
 
 
 def get_session(db: Session, session_id: UUID) -> Optional[ResumeSessionRecord]:
-    """Fetch a session by ID and ensure it hasn't expired."""
+    """Fetch a session by ID and ensure it hasn't expired.
+    Expired rows are treated as missing (return None) but are not deleted here.
+    Run delete_expired_sessions() periodically (e.g. cron) to remove them from the DB."""
 
     record = db.query(ResumeSessionRecord).filter(ResumeSessionRecord.id == str(session_id)).first()
     if not record:
@@ -80,6 +83,14 @@ def get_session(db: Session, session_id: UUID) -> Optional[ResumeSessionRecord]:
     if record.expires_at <= _now_utc():
         return None
     return record
+
+
+def delete_expired_sessions(db: Session) -> int:
+    """Delete resume_sessions rows where expires_at is in the past. Returns count deleted."""
+    now = _now_utc()
+    deleted = db.query(ResumeSessionRecord).filter(ResumeSessionRecord.expires_at <= now).delete(synchronize_session=False)
+    db.commit()
+    return deleted
 
 
 def update_session_from_upload(
@@ -101,6 +112,7 @@ def update_session_from_upload(
     phone: Optional[str],
     location: Optional[str],
     social_links: list,
+    uploaded_filename: Optional[str] = None,
 ) -> ResumeSessionRecord:
     """Update an existing session with new resume content (re-upload replaces storage)."""
 
@@ -110,6 +122,7 @@ def update_session_from_upload(
     record.resume_text = resume_text
     record.resume_s3_key = resume_s3_key
     record.resume_content_hash = resume_content_hash
+    record.uploaded_filename = uploaded_filename
     record.extracted_skills = extracted_skills
     record.inferred_titles = inferred_titles
     record.seniority = seniority

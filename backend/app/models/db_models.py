@@ -42,6 +42,7 @@ class ResumeSessionRecord(Base, PublicSchemaMixin):
     resume_text: Mapped[str] = mapped_column(Text)
     resume_s3_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     resume_content_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    uploaded_filename: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     extracted_skills: Mapped[list] = mapped_column(JSON, default=list)
     inferred_titles: Mapped[list] = mapped_column(JSON, default=list)
     seniority: Mapped[str] = mapped_column(String(32))

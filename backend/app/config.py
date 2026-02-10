@@ -49,7 +49,7 @@ SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "resumes")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5")
 OPENAI_MODEL_CHEAP = os.getenv("OPENAI_MODEL_CHEAP", "gpt-5-nano")
-OPENAI_RESUME_MAX_OUTPUT_TOKENS = int(os.getenv("OPENAI_RESUME_MAX_OUTPUT_TOKENS", "1024"))
+OPENAI_RESUME_MAX_OUTPUT_TOKENS = int(os.getenv("OPENAI_RESUME_MAX_OUTPUT_TOKENS", "1500"))
 # Max concurrent threads for parallel skill extraction (analyze_selected_jobs). I/O-bound LLM calls.
 LLM_SKILL_EXTRACT_MAX_WORKERS = int(os.getenv("LLM_SKILL_EXTRACT_MAX_WORKERS", "8"))
 

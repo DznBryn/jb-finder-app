@@ -45,6 +45,8 @@ from app.models.schemas import (
     RefreshStatusResponse,
     TitleFiltersResponse,
     LocationFiltersResponse,
+    UserResumesDeleteRequest,
+    UserResumesDeleteResponse,
 )
 from app.services.apply_service import prepare_cover_letter
 from app.services.analysis_service import (
@@ -75,8 +77,8 @@ from app.services.usage_service import (
     settle_usage,
 )
 from app.db import get_db
-from app.services.llm_service import parse_resume_text
-from app.services.llm_service import suggest_cover_letter_edits
+from app.services.ai.llm_service import parse_resume_text
+from app.services.ai.llm_service import suggest_cover_letter_edits
 from app.models.db_models import (
     AnalysisUsage,
     CoverLetterDocument,
@@ -85,17 +87,19 @@ from app.models.db_models import (
     JobListing,
     JobSelection,
     ResumeRecord,
+    ResumeSessionRecord,
 )
-from app.services.llm_service import review_resume_for_job
+from app.services.ai.llm_service import review_resume_for_job
 from app.services.resume_parser import parse_resume_file
 from app.services.session_service import (
     create_session,
+    delete_expired_sessions,
     get_session,
     list_job_selections,
     save_job_selections,
     update_session_from_upload,
 )
-from app.services.storage_service import save_resume_file
+from app.services.storage_service import save_resume_file, delete_resume_file
 from app.services.cover_letter_service import (
     apply_ops,
     compute_diff,
@@ -148,18 +152,38 @@ def upload_resume(
 ) -> SessionProfile:
     """Create or update a session from an uploaded resume file.
 
-    If session_id is provided and the session exists with a resume, the file at
-    the existing storage key is replaced (no duplicate copy). If the uploaded
-    file has the same content hash as the existing one, storage and DB update
-    are skipped. Otherwise a new session and storage object are created.
+    If the user uploads a file with the same filename as before, we do nothing
+    and return the existing session profile. Otherwise we parse, store, and
+    create/update the session.
     """
 
     file_bytes = file.file.read()
     content_hash = hashlib.sha256(file_bytes).hexdigest()
-    resume_text = parse_resume_file(file.filename, file_bytes)
-    parsed = parse_resume_text(resume_text, use_fast_model=False)
+    uploaded_filename = file.filename or ""
 
-    print(f"Parsed: {resume_text}")
+    def _session_profile_from_record(record, llm_warnings=None):
+        return SessionProfile(
+            session_id=UUID(record.id),
+            resume_s3_key=record.resume_s3_key,
+            extracted_skills=record.extracted_skills or [],
+            inferred_titles=record.inferred_titles or [],
+            seniority=record.seniority or "mid",
+            years_experience=record.years_experience or 0,
+            location_pref=record.location_pref,
+            remote_pref=record.remote_pref,
+            llm_summary=record.llm_summary,
+            first_name=record.first_name,
+            last_name=record.last_name,
+            email=record.email,
+            phone=record.phone,
+            location=record.location,
+            social_links=record.social_links or [],
+            llm_model=None,
+            llm_key_present=True,
+            llm_warnings=llm_warnings or [],
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+        )
 
     existing = None
     if session_id:
@@ -168,35 +192,62 @@ def upload_resume(
         except (ValueError, TypeError):
             existing = None
 
+    # Same filename: do nothing, return existing profile.
     if existing and existing.resume_s3_key:
-        if existing.resume_content_hash == content_hash:
-            # Exact same file: skip storage write and session update.
-            record = existing
-        else:
-            # Re-upload (different content): replace file at existing key.
-            resume_s3_key = save_resume_file(
-                file.filename, file_bytes, overwrite_key=existing.resume_s3_key
+        existing_filename = getattr(existing, "uploaded_filename", None) or ""
+        if existing_filename == uploaded_filename:
+            return _session_profile_from_record(
+                existing,
+                llm_warnings=["Same file as previous upload; no changes made."],
             )
-            record = update_session_from_upload(
-                db=db,
-                session_id=UUID(session_id),
-                resume_text=resume_text,
-                resume_s3_key=resume_s3_key,
-                resume_content_hash=content_hash,
-                extracted_skills=parsed.get("extracted_skills", []),
-                inferred_titles=parsed.get("inferred_titles", []),
-                seniority=parsed.get("seniority", "mid"),
-                years_experience=int(parsed.get("years_experience", 0)),
-                location_pref=location_pref,
-                remote_pref=remote_pref,
-                llm_summary=parsed.get("summary"),
-                first_name=parsed.get("first_name"),
-                last_name=parsed.get("last_name"),
-                email=parsed.get("email"),
-                phone=parsed.get("phone"),
-                location=parsed.get("location"),
-                social_links=parsed.get("social_links", []),
+
+    # Signed-in user: check if they already have a session with this filename.
+    effective_uid = (user_id or "").strip() or None
+    if effective_uid and not existing and uploaded_filename:
+        prior = (
+            db.query(ResumeSessionRecord)
+            .filter(
+                ResumeSessionRecord.user_id == effective_uid,
+                ResumeSessionRecord.uploaded_filename == uploaded_filename,
             )
+            .order_by(ResumeSessionRecord.created_at.desc())
+            .first()
+        )
+        if prior:
+            return _session_profile_from_record(
+                prior,
+                llm_warnings=["Same file as previous upload; no changes made."],
+            )
+
+    resume_text = parse_resume_file(file.filename, file_bytes)
+    parsed = parse_resume_text(resume_text, use_fast_model=False)
+
+    if existing and existing.resume_s3_key:
+        # Re-upload (different filename): replace file at existing key.
+        resume_s3_key = save_resume_file(
+            file.filename, file_bytes, overwrite_key=existing.resume_s3_key
+        )
+        record = update_session_from_upload(
+            db=db,
+            session_id=UUID(session_id),
+            resume_text=resume_text,
+            resume_s3_key=resume_s3_key,
+            resume_content_hash=content_hash,
+            uploaded_filename=uploaded_filename,
+            extracted_skills=parsed.get("extracted_skills", []),
+            inferred_titles=parsed.get("inferred_titles", []),
+            seniority=parsed.get("seniority", "mid"),
+            years_experience=int(parsed.get("years_experience", 0)),
+            location_pref=location_pref,
+            remote_pref=remote_pref,
+            llm_summary=parsed.get("summary"),
+            first_name=parsed.get("first_name"),
+            last_name=parsed.get("last_name"),
+            email=parsed.get("email"),
+            phone=parsed.get("phone"),
+            location=parsed.get("location"),
+            social_links=parsed.get("social_links", []),
+        )
     else:
         # New upload: create new storage object and session.
         resume_s3_key = save_resume_file(file.filename, file_bytes)
@@ -206,6 +257,7 @@ def upload_resume(
             resume_text=resume_text,
             resume_s3_key=resume_s3_key,
             resume_content_hash=content_hash,
+            uploaded_filename=uploaded_filename,
             extracted_skills=parsed.get("extracted_skills", []),
             inferred_titles=parsed.get("inferred_titles", []),
             seniority=parsed.get("seniority", "mid"),
@@ -1112,6 +1164,43 @@ def user_resumes(
     }
 
 
+@router.post("/api/user/resumes/delete", response_model=UserResumesDeleteResponse)
+def user_resumes_delete(
+    payload: UserResumesDeleteRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> UserResumesDeleteResponse:
+    """Delete one or more resume records for a user. Removes stored file(s) and DB rows."""
+
+    if not payload.resume_ids:
+        return UserResumesDeleteResponse(deleted=0)
+
+    deleted = 0
+    for resume_id in payload.resume_ids:
+        if not resume_id or not resume_id.strip():
+            continue
+        record = (
+            db.query(ResumeRecord)
+            .filter(
+                ResumeRecord.id == resume_id.strip(),
+                ResumeRecord.user_id == payload.user_id,
+            )
+            .first()
+        )
+        if not record:
+            continue
+        if record.resume_s3_key:
+            try:
+                delete_resume_file(record.resume_s3_key)
+            except Exception:
+                pass  # continue to delete DB row even if storage delete fails
+        db.delete(record)
+        deleted += 1
+
+    db.commit()
+    return UserResumesDeleteResponse(deleted=deleted)
+
+
 @router.get("/api/jobs/selected")
 def selected_jobs(
     session_id: UUID, user_id: Optional[str] = None, db: Session = Depends(get_db)
@@ -1211,3 +1300,13 @@ def ingest_refresh_status(job_id: int, db: Session = Depends(get_db)) -> Refresh
         totals=job.totals if isinstance(job.totals, dict) else None,
         error=job.error,
     )
+
+
+@router.post("/api/internal/cleanup-expired-sessions")
+def cleanup_expired_sessions(
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> Dict[str, int]:
+    """Delete resume_sessions rows where expires_at is in the past. Call from cron or manually."""
+    deleted = delete_expired_sessions(db)
+    return {"deleted": deleted}

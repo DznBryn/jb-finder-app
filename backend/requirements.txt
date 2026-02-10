@@ -14,3 +14,4 @@ psycopg2-binary
 alembic
 supabase>=2.0.0
 python-dotenv
+tiktoken

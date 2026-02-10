@@ -6,7 +6,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.db_models import JobListing, ResumeSessionRecord
-from app.services.llm_service import build_search_query
+from app.services.ai.llm_service import build_search_query
 from pprint import pprint
 
 logger = logging.getLogger("matching")
