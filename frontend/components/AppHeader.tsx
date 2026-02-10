@@ -6,23 +6,42 @@ import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import SignupPrompt from "@/components/SignupPrompt";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+
+const SCROLL_THRESHOLD = 8;
 
 export default function AppHeader() {
   const pathname = usePathname();
   const { status } = useSession();
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const isSignInPage = pathname === "/auth/signin";
   const isAuthenticated = status === "authenticated";
+
+  useEffect(() => {
+    const onScroll = () => {
+      setIsScrolled(typeof window !== "undefined" && window.scrollY > SCROLL_THRESHOLD);
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const getCallbackUrl = () =>
     typeof window === "undefined" ? "/" : window.location.href;
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full bg-transparent border-none">
-        <div className="mx-auto flex h-14 items-center gap-2 px-4 md:px-6">
+      <header
+        className={cn(
+          "sticky top-0 z-40 w-full border-none transition-[background-color,box-shadow] duration-200",
+          isScrolled
+            ? "bg-slate-900/90 shadow-sm backdrop-blur-sm"
+            : "bg-transparent"
+        )}
+      >
+        <div className="mx-auto flex h-14 items-center gap-2 px-4">
           {isAuthenticated ? (
             <SidebarTrigger
               className={cn(

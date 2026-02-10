@@ -172,7 +172,6 @@ export default function HomepageClient() {
       }
 
       const data = (await response.json()) as SessionProfile;
-      console.log(data);
       setSessionProfile(data);
       const inferredTitles = Array.isArray(data.inferred_titles)
         ? data.inferred_titles
@@ -505,8 +504,6 @@ export default function HomepageClient() {
     setLoadingMatches(true);
     setMatchesError(null);
     
-    console.log("fetchMatches", activeSession);
-
     try {
       const effectiveFilters =
         filters ??
@@ -543,7 +540,6 @@ export default function HomepageClient() {
           safeStorageRemove(cacheKey);
         }
       }
-      console.log("effectiveFilters", effectiveFilters)
       const response = await fetch("/api/matches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -564,9 +560,11 @@ export default function HomepageClient() {
         total: number;
         title_terms?: string[];
       };
-      console.log(data);
+
       applyMatchesPayload(data);
+      
       if (filters != null) setActiveFilters(effectiveFilters);
+      
       safeStorageSet(cacheKey, JSON.stringify(data));
     } catch (error) {
       setMatchesError(

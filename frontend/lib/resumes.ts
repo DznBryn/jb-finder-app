@@ -5,7 +5,7 @@ import type { UserResume, UserResumesPayload } from "@/type";
  */
 export function normalizeResumesPayload(payload: UserResumesPayload): UserResume[] {
   const { resumes, saved_jobs, analyzed_jobs, cover_letters } = payload;
-  console.log(analyzed_jobs)
+  
   if (!Array.isArray(resumes)) return [];
 
   return resumes.map((resume) => ({

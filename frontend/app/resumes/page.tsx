@@ -47,7 +47,7 @@ export default async function ResumesPage({
   const total = resumes.length;
   const start = Number(currentPage - 1) * Number(PAGE_SIZE);
   const pageResumes = resumes.slice(start, start + PAGE_SIZE);
-  console.log("pageResumes", start, start + PAGE_SIZE, pageResumes);
+  
   return (
     <div className="p-2 w-full max-w-7xl mx-auto flex flex-col gap-2">
       <p className="text-slate-400 text-sm">

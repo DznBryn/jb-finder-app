@@ -99,7 +99,7 @@ export default function AuthLayout({
 
   // Not authenticated: full-width layout without sidebar, with transparent header
   return (
-    <main className="min-h-svh w-full flex flex-col">
+    <main className="min-h-svh w-full flex flex-col md:max-w-7xl mx-auto">
       <AppHeader />
       <div className="flex-1 min-h-0">
         {children}
