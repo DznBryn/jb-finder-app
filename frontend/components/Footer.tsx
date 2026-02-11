@@ -15,7 +15,7 @@ const footerLinkClass =
 export default function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-transparent border-t border-slate-800/50 mt-auto">
+    <footer className="relative z-0 bg-transparent border-t border-slate-800/50 mt-auto">
       <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1">
           <span className="font-bold text-slate-400">hyreme.io</span>

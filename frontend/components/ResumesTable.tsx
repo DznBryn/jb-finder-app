@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { UserResume } from "@/type";
+import type { SessionProfile, UserResume } from "@/type";
 import {
   Table,
   TableBody,
@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { useSession } from "@/app/session-context";
 
 const PAGE_SIZE = 10;
 
@@ -60,13 +62,27 @@ export default function ResumesTable({
   total: number;
 }) {
   const router = useRouter();
+  const { setSessionProfile } = useSession();
+  const isMobile = useIsMobile();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [matchDialogResume, setMatchDialogResume] = useState<UserResume | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const to = Math.min(currentPage * PAGE_SIZE, total);
+
+  const visiblePages = (() => {
+    if (isMobile) {
+      const adjacent = 1;
+      const start = Math.max(1, currentPage - adjacent);
+      const end = Math.min(totalPages, currentPage + adjacent);
+      return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+    }
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  })();
 
   const pageIds = resumes.map((resume) => resume.id);
 
@@ -125,7 +141,32 @@ export default function ResumesTable({
     }
   }, [selectedIds, router]);
 
-  const disabled = isDeleting;
+  const confirmMatch = useCallback(async () => {
+    const resume = matchDialogResume;
+    if (!resume) return;
+    setMatchDialogResume(null);
+    setIsCreatingSession(true);
+    try {
+      const res = await fetch(`/api/user/resume/${encodeURIComponent(resume.id)}/create-session`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data?.error ?? "Failed to start matching.");
+        return;
+      }
+      const profile = (await res.json()) as SessionProfile;
+      setSessionProfile(profile);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("session_id", profile.session_id);
+      }
+      router.push(`/resumes/match/${resume.id}?session_id=${encodeURIComponent(profile.session_id)}`);
+    } finally {
+      setIsCreatingSession(false);
+    }
+  }, [matchDialogResume, router, setSessionProfile]);
+
+  const disabled = isDeleting || isCreatingSession;
   const selectedCount = selectedIds.size;
 
   return (
@@ -170,6 +211,34 @@ export default function ResumesTable({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!matchDialogResume} onOpenChange={(open) => !open && setMatchDialogResume(null)}>
+        <DialogContent variant="center" className="max-w-sm sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Match this resume to jobs?</DialogTitle>
+            <DialogDescription>
+              {matchDialogResume
+                ? `Run job matching for "${filenameFromS3Key(matchDialogResume.resume_s3_key)}" using the same workflow as resume upload. You’ll see match results on the next page.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setMatchDialogResume(null)}
+              disabled={isCreatingSession}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmMatch}
+              disabled={isCreatingSession}
+            >
+              {isCreatingSession ? "Starting…" : "Match jobs"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div
         className={cn(
           "rounded-md border border-slate-800 bg-slate-900/40",
@@ -208,32 +277,42 @@ export default function ResumesTable({
                 </TableCell>
               </TableRow>
             ) : (
-              resumes.map((r) => (
+              resumes.map((resume) => (
                 <TableRow
-                  key={r.id}
-                  className="border-slate-800 hover:bg-slate-800/40"
+                  key={resume.id}
+                  className={cn(
+                    "border-slate-800 hover:bg-slate-800/40",
+                    !disabled && "cursor-pointer"
+                  )}
+                  onClick={() => {
+                    if (disabled) return;
+                    setMatchDialogResume(resume);
+                  }}
                 >
-                  <TableCell className="w-10">
+                  <TableCell
+                    className="w-10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
-                      checked={selectedIds.has(r.id)}
-                      onChange={() => toggleRow(r.id)}
+                      checked={selectedIds.has(resume.id)}
+                      onChange={() => toggleRow(resume.id)}
                       disabled={disabled}
-                      aria-label={`Select ${filenameFromS3Key(r.resume_s3_key)}`}
+                      aria-label={`Select ${filenameFromS3Key(resume.resume_s3_key)}`}
                       className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-slate-200 focus:ring-slate-500"
                     />
                   </TableCell>
                   <TableCell className="font-medium text-slate-200">
-                    {filenameFromS3Key(r.resume_s3_key)}
+                    {filenameFromS3Key(resume.resume_s3_key)}
                   </TableCell>
                   <TableCell className="text-slate-400">
-                    {formatDate(r.created_at)}
+                    {formatDate(resume.created_at)}
                   </TableCell>
                   <TableCell className="text-slate-400">
-                    {(r.extracted_skills?.length ?? 0)}
+                    {(resume.extracted_skills?.length ?? 0)}
                   </TableCell>
                   <TableCell className="text-slate-400">
-                    {(r.inferred_titles?.length ?? 0)}
+                    {(resume.inferred_titles?.length ?? 0)}
                   </TableCell>
                 </TableRow>
               ))
@@ -245,14 +324,14 @@ export default function ResumesTable({
       {/* {totalPages > 1 && ( */}
       <div
         className={cn(
-          "w-full grid grid-cols-12 items-center justify-between px-2",
+          "w-full grid grid-cols-12 items-center justify-between gap-2 px-2 pb-4 md:pb-0",
           disabled && "pointer-events-none opacity-60"
         )}
       >
-        <p className="text-sm text-slate-500 col-span-1 ">
+        <p className="text-sm text-slate-500 col-span-12 md:col-span-1">
           {from}-{to} of {total}
         </p>
-        <Pagination className="col-span-11 justify-end w-full">
+        <Pagination className="col-span-12 md:col-span-11 justify-end w-full">
           <PaginationContent>
             <PaginationItem>
               {currentPage > 1 ? (
@@ -261,7 +340,7 @@ export default function ResumesTable({
                   className={buttonVariants({
                     variant: "ghost",
                     size: "default",
-                    className: "gap-1 pl-2.5",
+                    className: "gap-1 pl-2.5 min-h-[44px] min-w-[44px] touch-manipulation",
                   })}
                 >
                   ‹ Previous
@@ -270,31 +349,30 @@ export default function ResumesTable({
                 <span
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "default" }),
-                    "gap-1 pl-2.5 pointer-events-none opacity-50"
+                    "gap-1 pl-2.5 min-h-[44px] min-w-[44px] pointer-events-none opacity-50"
                   )}
                 >
                   ‹ Previous
                 </span>
               )}
             </PaginationItem>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-              (page) => (
-                <PaginationItem key={page}>
-                  <Link
-                    href={`/resumes?page=${page}`}
-                    className={cn(
-                      buttonVariants({
-                        variant: page === currentPage ? "outline" : "ghost",
-                        size: "icon",
-                      })
-                    )}
-                    aria-current={page === currentPage ? "page" : undefined}
-                  >
-                    {page}
-                  </Link>
-                </PaginationItem>
-              )
-            )}
+            {visiblePages.map((page: number) => (
+              <PaginationItem key={page}>
+                <Link
+                  href={`/resumes?page=${page}`}
+                  className={cn(
+                    buttonVariants({
+                      variant: page === currentPage ? "outline" : "ghost",
+                      size: "icon",
+                    }),
+                    "min-h-[44px] min-w-[44px] touch-manipulation"
+                  )}
+                  aria-current={page === currentPage ? "page" : undefined}
+                >
+                  {page}
+                </Link>
+              </PaginationItem>
+            ))}
             <PaginationItem>
               {currentPage < totalPages ? (
                 <Link
@@ -302,7 +380,7 @@ export default function ResumesTable({
                   className={buttonVariants({
                     variant: "ghost",
                     size: "default",
-                    className: "gap-1 pr-2.5",
+                    className: "gap-1 pr-2.5 min-h-[44px] min-w-[44px] touch-manipulation",
                   })}
                 >
                   Next ›
@@ -311,7 +389,7 @@ export default function ResumesTable({
                 <span
                   className={cn(
                     buttonVariants({ variant: "ghost", size: "default" }),
-                    "gap-1 pr-2.5 pointer-events-none opacity-50"
+                    "gap-1 pr-2.5 min-h-[44px] min-w-[44px] pointer-events-none opacity-50"
                   )}
                 >
                   Next ›

@@ -24,7 +24,7 @@ const MatchesSection = dynamic(() => import("./MatchesSection"), {
   loading: () => <MatchesSkeleton />,
 });
 
-export default function HomepageClient() {
+export default function HomepageClient({ matchOnly = false }: { matchOnly?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const { status: authStatus, data: authData } = useAuthSession();
   const {
@@ -878,6 +878,24 @@ export default function HomepageClient() {
   const showMatchesSection = !!sessionProfile;
   const showMatchesLoading =
     showMatchesSection && loadingMatches && !hasLoadedMatches;
+
+  if (matchOnly) {
+    if (!sessionProfile) {
+      return (
+        <div className="mx-auto flex min-h-[40vh] flex-col items-center justify-center gap-4 px-2 py-8">
+          <p className="text-slate-500">Loading session…</p>
+        </div>
+      );
+    }
+    return (
+      <div className="landing-page">
+        <div className="mx-auto flex min-h-[70vh] flex-col items-center gap-8 px-2 py-4 md:py-12 justify-start">
+          {showMatchesLoading && <MatchesSkeleton variant="landing" />}
+          {!showMatchesLoading && <MatchesSection {...matchGridProps} />}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

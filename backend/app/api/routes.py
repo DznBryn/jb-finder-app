@@ -93,6 +93,7 @@ from app.services.ai.llm_service import review_resume_for_job
 from app.services.resume_parser import parse_resume_file
 from app.services.session_service import (
     create_session,
+    create_session_from_resume,
     delete_expired_sessions,
     get_session,
     list_job_selections,
@@ -1199,6 +1200,44 @@ def user_resumes_delete(
 
     db.commit()
     return UserResumesDeleteResponse(deleted=deleted)
+
+
+@router.post("/api/user/resume/{resume_id}/create-session", response_model=SessionProfile)
+def create_session_from_resume_route(
+    resume_id: str,
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> SessionProfile:
+    """Create a temporary session from a stored resume for job matching. Returns session profile."""
+    print("resume_id", resume_id)
+    print("user_id", user_id)
+    session_record = create_session_from_resume(db, resume_id.strip(), user_id.strip())
+    pprint(session_record)
+    if not session_record:
+        raise HTTPException(status_code=404, detail="Resume not found or access denied.")
+    return SessionProfile(
+        session_id=UUID(session_record.id),
+        resume_s3_key=session_record.resume_s3_key,
+        extracted_skills=session_record.extracted_skills or [],
+        inferred_titles=session_record.inferred_titles or [],
+        seniority=session_record.seniority or "mid",
+        years_experience=session_record.years_experience or 0,
+        location_pref=session_record.location_pref,
+        remote_pref=session_record.remote_pref,
+        llm_summary=session_record.llm_summary,
+        first_name=session_record.first_name,
+        last_name=session_record.last_name,
+        email=session_record.email,
+        phone=session_record.phone,
+        location=session_record.location,
+        social_links=session_record.social_links or [],
+        llm_model=None,
+        llm_key_present=True,
+        llm_warnings=None,
+        created_at=session_record.created_at,
+        expires_at=session_record.expires_at,
+    )
 
 
 @router.get("/api/jobs/selected")

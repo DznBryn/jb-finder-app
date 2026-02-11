@@ -24,7 +24,7 @@ export default function UploadResume({
       : "Upload and parse";
 
   const sectionClass = isLanding
-    ? "flex w-full max-w-2xl flex-col items-center gap-4 text-center"
+    ? "flex w-full max-w-2xl flex-col items-center gap-4 text-center p-4"
     : "w-full rounded-2xl border border-slate-800 bg-slate-900/60 flex flex-col gap-3 p-4 md:p-6";
 
   const errorClass = isLanding

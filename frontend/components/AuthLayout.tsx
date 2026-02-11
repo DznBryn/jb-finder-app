@@ -79,7 +79,7 @@ export default function AuthLayout({
       <>
         <div className="flex min-h-svh w-full">
           <AppSidebar />
-          <main className="flex flex-1 flex-col min-h-0 min-w-0 transition-[width,height] ease-linear md:ml-42 md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-28 px-4">
+          <main className="flex flex-1 flex-col min-h-0 min-w-0 transition-[width,height] ease-linear md:ml-42 md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-28 md:px-4">
             <AppHeader />
             <div className="flex-1 flex flex-col gap-4 min-h-0">
               {children}
