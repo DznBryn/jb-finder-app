@@ -7,7 +7,8 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.models.db_models import JobSelection, ResumeSessionRecord
+from app.models.db_models import JobSelection, ResumeRecord, ResumeSessionRecord
+from app.services.payment_service import get_user_plan
 
 
 def _now_utc() -> datetime:
@@ -65,6 +66,51 @@ def create_session(
         daily_selections=0,
         daily_selection_date=now.date().isoformat(),
         plan="free",
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+def create_session_from_resume(
+    db: Session, resume_id: str, user_id: str
+) -> Optional[ResumeSessionRecord]:
+    """Create a new resume_sessions row from a user's stored resume for matching. Returns the new session or None if resume not found."""
+    resume = (
+        db.query(ResumeRecord)
+        .filter(ResumeRecord.id == resume_id, ResumeRecord.user_id == user_id)
+        .first()
+    )
+    if not resume:
+        return None
+    now = _now_utc()
+    user_plan = get_user_plan(db, user_id)
+    record = ResumeSessionRecord(
+        id=str(uuid4()),
+        user_id=user_id,
+        resume_text=resume.resume_text,
+        resume_s3_key=resume.resume_s3_key,
+        resume_content_hash=resume.resume_content_hash,
+        uploaded_filename=None,
+        extracted_skills=resume.extracted_skills or [],
+        inferred_titles=resume.inferred_titles or [],
+        seniority=resume.seniority or "mid",
+        years_experience=resume.years_experience or 0,
+        location_pref=resume.location_pref,
+        remote_pref=resume.remote_pref,
+        llm_summary=resume.llm_summary,
+        first_name=resume.first_name,
+        last_name=resume.last_name,
+        email=resume.email,
+        phone=resume.phone,
+        location=resume.location,
+        social_links=resume.social_links or [],
+        created_at=now,
+        expires_at=now + timedelta(hours=24),
+        daily_selections=0,
+        daily_selection_date=now.date().isoformat(),
+        plan=user_plan or "free",
     )
     db.add(record)
     db.commit()

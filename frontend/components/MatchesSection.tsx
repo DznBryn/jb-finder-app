@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import type React from "react";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { useSession as useAuthSession } from "next-auth/react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Pagination,
   PaginationContent,
@@ -13,7 +14,6 @@ import {
   PaginationPrevious,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
-import { Progress } from "@/components/ui/progress";
 
 import { useSession } from "../app/session-context";
 import { useUserResumeStore } from "@/lib/userResumeStore";
@@ -22,6 +22,8 @@ import { INDUSTRY_OPTIONS } from "@/type";
 import { Button } from "./ui/button";
 import Link from "next/link";
 import MatchesSkeleton from "./skeletons/MatchesSkeleton";
+import MatchCardSkeleton from "./skeletons/MatchCardSkeleton";
+import AnalyzeProgress from "./AnalyzeProgress";
 
 
 function getLocationBadge(label: string) {
@@ -105,7 +107,7 @@ function LocationFilterInput({
       />
       {open && suggestions.length > 0 ? (
         <ul
-          className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-lg"
+          className="absolute z-[var(--z-header)] mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-700 bg-slate-900 py-1 shadow-lg"
           role="listbox"
           onMouseDown={(e) => e.preventDefault()}
         >
@@ -174,6 +176,23 @@ export default function MatchesSection({
   const { sessionProfile } = useSession();
   const { status } = useAuthSession();
   const resumes = useUserResumeStore((state) => state.resumes);
+  const isMobile = useIsMobile();
+  const selectSectionRef = useRef<HTMLDivElement>(null);
+  const [selectSectionOutOfView, setSelectSectionOutOfView] = useState(false);
+
+  useEffect(() => {
+    const el = selectSectionRef.current;
+    console.log("el", { el, x: selectSectionRef.current });
+    if (!el || !isMobile || !hasLoadedMatches) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setSelectSectionOutOfView(!entry.isIntersecting);
+      },
+      { threshold: 0, rootMargin: "0px 0px 0px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isMobile, hasLoadedMatches]);
 
   const storeAnalysis = useMemo(() => {
     const results: Record<string, UserResumeAnalysis> = {};
@@ -364,8 +383,9 @@ export default function MatchesSection({
   const totalPages = Math.max(1, Math.ceil(matchesTotal / matchesPageSize));
   const pageNumbers = () => {
     const pages: number[] = [];
-    const start = Math.max(1, matchesPage - 2);
-    const end = Math.min(totalPages, matchesPage + 2);
+    const adjacent = isMobile ? 1 : 2;
+    const start = Math.max(1, matchesPage - adjacent);
+    const end = Math.min(totalPages, matchesPage + adjacent);
     for (let i = start; i <= end; i += 1) {
       pages.push(i);
     }
@@ -489,7 +509,10 @@ export default function MatchesSection({
 
           {matches.length > 0 || loadingMatches ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300">
+              <div
+                ref={selectSectionRef}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-300"
+              >
                 <div>
                   <p className="font-semibold text-white">
                     Select jobs to analyze/apply
@@ -538,22 +561,72 @@ export default function MatchesSection({
                   </Button>
                 </div>
               </div>
-              {analyzing ? (
-                <div className="p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-xs font-semibold text-slate-200">
-                      {analysisProgress
-                        ? `Analyzing selections… ${analysisProgress.current} of ${analysisProgress.total} (${analysisProgress.percent}%)`
-                        : "Analyzing selections…"}
+              {isMobile ? (
+                <div
+                  aria-hidden={!selectSectionOutOfView}
+                  className="fixed bottom-0 left-0 m-0 right-0 z-[var(--z-sticky-toolbar)] flex flex-col items-center gap-2 border-t border-slate-800 bg-slate-950/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] backdrop-blur-sm transition-[transform,opacity] duration-200 md:hidden"
+                  style={{
+                    transform: selectSectionOutOfView ? "translateY(0)" : "translateY(100%)",
+                    opacity: selectSectionOutOfView ? 1 : 0,
+                    pointerEvents: selectSectionOutOfView ? "auto" : "none",
+                  }}
+                >
+                  {analyzing ? (
+                    <AnalyzeProgress
+                      analyzing={analyzing}
+                      analysisProgress={analysisProgress}
+                      compact
+                      className="w-full"
+                    />
+                  ) : selectionResult ? (
+                    <p className="text-center text-sm font-medium text-emerald-200">
+                      {selectionResult.accepted_job_ids.length}{" "}
+                      {selectionResult.accepted_job_ids.length === 1 ? "job" : "jobs"}{" "}
+                      saved for apply
                     </p>
+                  ) : null}
+                  <div className="flex w-full items-center justify-center gap-2">
+                  <Button
+                    className="flex-1 rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                    variant={"outline"}
+                    onClick={onAnalyzeSelections}
+                    disabled={
+                      selectedJobs.length === 0 ||
+                      analyzing ||
+                      loadingMatches ||
+                      unanalyzedSelected.length === 0
+                    }
+                  >
+                    {analyzing ? "…" : "Analyze"}
+                  </Button>
+                  <Button
+                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                    variant={"outline"}
+                    onClick={onDeselectAll}
+                    disabled={selectedJobs.length === 0 || loadingMatches}
+                  >
+                    Deselect
+                  </Button>
+                  <Button
+                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                    variant={"outline"}
+                    onClick={onSelectAllVisible}
+                    disabled={loadingMatches || matches.length === 0}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950"
+                    variant={"default"}
+                    onClick={onSaveSelections}
+                    disabled={selectedJobs.length === 0 || loadingMatches}
+                  >
+                    Save
+                  </Button>
                   </div>
-                  <Progress
-                    className="mt-3 bar "
-                    value={analysisProgress ? analysisProgress.percent : null}
-                    max={100}
-                  />
                 </div>
               ) : null}
+              <AnalyzeProgress analyzing={analyzing} analysisProgress={analysisProgress} />
 
               {selectionError ? (
                 <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
@@ -589,20 +662,20 @@ export default function MatchesSection({
                   ? Array.from({ length: 6 }).map((_, index) => (
                     <div
                       key={`loading-${index}`}
-                      className="rounded-xl border border-slate-800 bg-slate-950 p-4 text-sm text-slate-200 animate-pulse"
+                      className="rounded-xl border border-slate-800 bg-slate-950 p-4"
                     >
-                      <div className="mb-3 h-4 w-24 rounded bg-slate-800" />
-                      <div className="mb-2 h-4 w-3/4 rounded bg-slate-800" />
-                      <div className="mb-4 h-3 w-1/2 rounded bg-slate-800" />
-                      <div className="mb-4 flex gap-2">
-                        <div className="h-5 w-20 rounded-full bg-slate-800" />
-                        <div className="h-5 w-16 rounded-full bg-slate-800" />
-                      </div>
-                      <div className="h-20 rounded bg-slate-900" />
+                      <MatchCardSkeleton />
                     </div>
                   ))
                   : matches.map((match) => {
                     const isSelected = selectedJobs.includes(match.job_id);
+                    const jobCurrentlyAnalyzing =
+                      analyzing &&
+                      analysisProgress &&
+                      analysisProgress.current > 0 &&
+                      unanalyzedSelected[analysisProgress.current - 1] === match.job_id;
+                    const showSkeleton = jobCurrentlyAnalyzing;
+
                     return (
                     <div
                       key={match.job_id}
@@ -615,12 +688,16 @@ export default function MatchesSection({
                           onToggleJobSelection(match.job_id);
                         }
                       }}
-                      className={`rounded-xl border p-4 text-sm text-slate-200 flex flex-col gap-3 transition-colors cursor-pointer select-none ${
+                      className={`rounded-xl border p-4 text-sm text-slate-200 flex flex-col gap-3 transition-all duration-200 cursor-pointer select-none ${
                         isSelected
                           ? "border-emerald-500/60 bg-emerald-500/10 ring-1 ring-emerald-500/30"
                           : "border-slate-800 bg-slate-950"
                       }`}
                     >
+                      {showSkeleton ? (
+                        <MatchCardSkeleton />
+                      ) : (
+                      <>
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-base font-semibold text-white">
@@ -670,11 +747,6 @@ export default function MatchesSection({
                             </p>
                           ) : null}
                         </div>
-                      ) : analyzing && selectedJobs.includes(match.job_id) ? (
-                        <div className="mt-3 space-y-2 text-xs text-slate-300">
-                          <div className="h-3 w-3/4 rounded bg-slate-800 animate-pulse" />
-                          <div className="h-3 w-1/2 rounded bg-slate-800 animate-pulse" />
-                        </div>
                       ) : null}
 
                       {match.pay_ranges && match.pay_ranges.length > 0 ? (
@@ -721,6 +793,8 @@ export default function MatchesSection({
                         </Link>
 
                       </div>
+                      </>
+                      )}
                     </div>
                     );
                   })}
@@ -748,7 +822,7 @@ export default function MatchesSection({
                     }
                   />
                 </PaginationItem>
-                {matchesPage > 3 ? (
+                {!isMobile && matchesPage > 3 ? (
                   <>
                     <PaginationItem>
                       <PaginationLink
@@ -781,7 +855,7 @@ export default function MatchesSection({
                     </PaginationLink>
                   </PaginationItem>
                 ))}
-                {matchesPage < totalPages - 2 ? (
+                {!isMobile && matchesPage < totalPages - 2 ? (
                   <>
                     <PaginationItem>
                       <PaginationEllipsis />

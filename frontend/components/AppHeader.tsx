@@ -35,13 +35,13 @@ export default function AppHeader() {
     <>
       <header
         className={cn(
-          "sticky top-0 z-40 w-full border-none transition-[background-color,box-shadow] duration-200",
+          "sticky top-0 z-[var(--z-header)] w-full border-none transition-[background-color,box-shadow] duration-200",
           isScrolled
-            ? "bg-slate-900/90 shadow-sm backdrop-blur-sm"
+            ? "border-b border-slate-800 bg-slate-950/95 shadow-sm backdrop-blur-sm"
             : "bg-transparent"
         )}
       >
-        <div className="mx-auto flex h-14 items-center gap-2 px-4">
+        <div className="mx-auto flex h-14 md:hidden items-center gap-2 px-4">
           {isAuthenticated ? (
             <SidebarTrigger
               className={cn(

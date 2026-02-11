@@ -53,7 +53,11 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Z-index scale: base(0) < sidebar(10) < sticky-toolbar(30) < header(40) < overlays(50) */
 :root {
+  --z-sticky-toolbar: 30;
+  --z-header: 40;
+  --z-overlay: 50;
   --radius: 0.625rem;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
