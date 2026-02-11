@@ -504,8 +504,8 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
         title="Save your progress"
         message="Create an account to save your session and unlock more features."
       />
-      <div className="flex flex-col md:flex-row gap-6">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 flex flex-col gap-6 w-full md:w-7/12">
+      <div className="flex flex-col md:flex-row p-2 gap-6">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:p-6 flex flex-col gap-6 w-full md:w-7/12">
         <div className="w-full h-auto">
           {loadingJob ? (
             <div className="space-y-3 animate-pulse">
@@ -521,7 +521,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
               {jobError}
             </div>
           ) : job ? (
-            <div className="grid grid-cols-2  gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2  gap-4">
               <div className="flex flex-col gap-2 w-full h-full">
                 <div>
                   <h1 className="text-2xl font-bold text-white">{job.title}</h1>
@@ -540,7 +540,7 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
                   </a>
                 ) : null}
               </div>
-              <ButtonGroup className="self-start justify-self-end">
+              <ButtonGroup className="self-start md:justify-self-end">
                 <Button
                   className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100 disabled:opacity-60"
                   variant="outline"

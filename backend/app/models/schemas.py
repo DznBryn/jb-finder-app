@@ -202,6 +202,29 @@ class SubscriptionStatusResponse(BaseModel):
     status: str
 
 
+class SubscriptionDetailsResponse(BaseModel):
+    """Subscription display info for account component. No Stripe IDs exposed."""
+
+    plan: str
+    plan_name: str
+    price_display: str
+    billing_interval: str
+    status: str
+    can_manage: bool = False
+
+
+class SubscriptionPortalRequest(BaseModel):
+    """Request to create a Stripe Customer Portal session."""
+
+    user_id: str
+
+
+class SubscriptionPortalResponse(BaseModel):
+    """Response when creating a Stripe Customer Portal session."""
+
+    url: str
+
+
 class RefreshEnqueueResponse(BaseModel):
     """Response when a refresh job is enqueued."""
 

@@ -95,6 +95,7 @@ export type UserWallet = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   status?: string | null;
+  can_manage_subscription?: boolean;
 };
 
 export type UserBaseProfile = {

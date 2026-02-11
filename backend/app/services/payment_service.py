@@ -13,10 +13,8 @@ from sqlalchemy.orm import Session
 from app.config import (
     AUTH_SCHEMA,
     FRONTEND_URL,
-    STRIPE_PRICE_MONTHLY,
     STRIPE_PRICE_MONTHLY_BASIC,
     STRIPE_PRICE_MONTHLY_PRO,
-    STRIPE_PRICE_ONETIME,
     STRIPE_PRICE_TOPUP_LARGE,
     STRIPE_PRICE_TOPUP_SMALL,
     STRIPE_SECRET_KEY,
@@ -49,6 +47,32 @@ def set_user_plan(db: Session, user_id: str, plan: str) -> None:
     db.commit()
 
 
+def set_user_stripe_customer(db: Session, user_id: str, stripe_customer_id: str) -> None:
+    """Persist Stripe customer ID for Customer Portal access."""
+    try:
+        db.execute(
+            text(
+                f"UPDATE {_users_table()} SET stripe_customer_id = :cid WHERE id = :id"
+            ),
+            {"cid": stripe_customer_id, "id": user_id},
+        )
+        db.commit()
+    except Exception:
+        pass
+
+
+def get_user_stripe_customer(db: Session, user_id: str) -> str | None:
+    """Return Stripe customer ID for user, or None if not set."""
+    try:
+        r = db.execute(
+            text(f"SELECT stripe_customer_id FROM {_users_table()} WHERE id = :id"),
+            {"id": user_id},
+        ).fetchone()
+        return (r[0] or None) if r else None
+    except Exception:
+        return None
+
+
 def get_user_plan(db: Session, user_id: str) -> str:
     """Return plan from auth users table; default 'free' if missing."""
     r = db.execute(
@@ -65,11 +89,6 @@ _PLAN_PRICE: dict[str, tuple[str, str]] = {
     "topup_small": (STRIPE_PRICE_TOPUP_SMALL, "payment"),
     "topup_large": (STRIPE_PRICE_TOPUP_LARGE, "payment"),
 }
-# Fallback for legacy plans
-if STRIPE_PRICE_MONTHLY:
-    _PLAN_PRICE.setdefault("monthly", (STRIPE_PRICE_MONTHLY, "subscription"))
-if STRIPE_PRICE_ONETIME:
-    _PLAN_PRICE.setdefault("one_time", (STRIPE_PRICE_ONETIME, "payment"))
 
 PLAN_CREDITS: dict[str, int] = {
     "monthly_basic": 500,
@@ -93,7 +112,7 @@ def grant_credits(
     if plan.startswith("topup") and is_subscriber:
         credits = int(credits * (1 + SUBSCRIBER_BONUS))
     table = _users_table()
-    if plan.startswith("monthly"):
+    if plan.startswith("monthly_basic") or plan.startswith("monthly_pro"):
         db.execute(
             text(f"UPDATE {table} SET subscription_credits = subscription_credits + :amt WHERE id = :id"),
             {"amt": credits, "id": user_id},
@@ -180,14 +199,17 @@ def fulfill_checkout_session(stripe_session_id: str, db: Session) -> bool:
     """
     if not STRIPE_SECRET_KEY:
         raise ValueError("STRIPE_SECRET_KEY is not set.")
+   
     stripe.api_key = STRIPE_SECRET_KEY
     session = stripe.checkout.Session.retrieve(stripe_session_id)
     payment_status = getattr(session, "payment_status", None) or ""
+   
     if payment_status != "paid":
         return False
+   
     metadata = getattr(session, "metadata", None) or {}
     user_id = metadata.get("user_id")
-    plan = metadata.get("plan", "monthly")
+    plan = metadata.get("plan", "monthly_basic")
 
     try:
         db.execute(
@@ -207,7 +229,6 @@ def fulfill_checkout_session(stripe_session_id: str, db: Session) -> bool:
         is_subscriber = get_user_plan(db, user_id) in (
             "monthly_basic",
             "monthly_pro",
-            "monthly",
         )
         credits_granted = _credits_for_plan(plan, is_subscriber)
         grant_credits(db, user_id, plan, is_subscriber)
@@ -228,7 +249,6 @@ def fulfill_checkout_session(stripe_session_id: str, db: Session) -> bool:
                 is_subscriber = get_user_plan(db, session_rec.user_id) in (
                     "monthly_basic",
                     "monthly_pro",
-                    "monthly",
                 )
                 credits_granted = _credits_for_plan(plan, is_subscriber)
                 set_user_plan(db, session_rec.user_id, plan)
@@ -236,6 +256,14 @@ def fulfill_checkout_session(stripe_session_id: str, db: Session) -> bool:
                 effective_user_id = session_rec.user_id
             else:
                 set_subscription_active(sid, plan)
+
+    # Store Stripe customer ID for Customer Portal when we have a user
+    if effective_user_id:
+        customer = getattr(session, "customer", None)
+        if customer:
+            cid = customer if isinstance(customer, str) else (getattr(customer, "id", None) if hasattr(customer, "id") else None)
+            if cid:
+                set_user_stripe_customer(db, effective_user_id, cid)
 
     # Record user_id, credits_granted, and payment_intent for refund handling
     payment_intent_id = getattr(session, "payment_intent", None) or (
@@ -343,6 +371,35 @@ def set_subscription_active(session_id: UUID, plan: str) -> SubscriptionStatus:
     status = SubscriptionStatus(plan=plan, status="active")
     _SUBSCRIPTIONS[session_id] = status
     return status
+
+
+def create_customer_portal_session(
+    user_id: str,
+    db: Session,
+    return_path: str = "/",
+) -> str:
+    """
+    Create a Stripe Customer Portal session. Returns the portal URL.
+    Raises ValueError if user has no Stripe customer ID.
+    """
+    if not STRIPE_SECRET_KEY:
+        raise ValueError("STRIPE_SECRET_KEY is not set.")
+
+    customer_id = get_user_stripe_customer(db, user_id)
+    
+    if not customer_id:
+        raise ValueError("No Stripe customer linked. Subscribe first to manage your subscription.")
+    
+    stripe.api_key = STRIPE_SECRET_KEY
+    
+    return_url = f"{FRONTEND_URL}{return_path}" if return_path.startswith("/") else f"{FRONTEND_URL}/{return_path}"
+    
+    portal_session = stripe.billing_portal.Session.create(
+        customer=customer_id,
+        return_url=return_url,
+    )
+    
+    return portal_session.url
 
 
 def get_subscription_status(

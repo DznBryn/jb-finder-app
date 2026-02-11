@@ -13,6 +13,9 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models.schemas import (
+    SubscriptionDetailsResponse,
+    SubscriptionPortalRequest,
+    SubscriptionPortalResponse,
     ApplyPrepareRequest,
     ApplyPrepareResponse,
     AnalyzeRequest,
@@ -61,6 +64,7 @@ from app.services.refresh_queue import enqueue_refresh, get_job
 from app.config import STRIPE_WEBHOOK_BYPASS, AUTH_SCHEMA, INTERNAL_API_KEY
 from app.services.payment_service import (
     create_checkout_session,
+    create_customer_portal_session,
     fulfill_checkout_session,
     get_checkout_session_status,
     handle_charge_refunded,
@@ -952,7 +956,7 @@ async def stripe_webhook(
         user_id = metadata.get("user_id")
         if user_id:
             plan = get_user_plan(db, user_id)
-            if plan in ("monthly_basic", "monthly_pro", "monthly"):
+            if plan in ("monthly_basic", "monthly_pro"):
                 from app.services.payment_service import PLAN_CREDITS
                 credits = PLAN_CREDITS.get(plan) or PLAN_CREDITS.get("monthly_basic", 500)
                 db.execute(
@@ -993,6 +997,52 @@ def subscription_status(
     return SubscriptionStatusResponse(plan=status.plan, status=status.status)
 
 
+_PLAN_DISPLAY = {
+    "monthly_basic": ("Job Seeker (Basic)", "$9.99", "month"),
+    "monthly_pro": ("Power Applier (Pro)", "$24.99", "month"),
+    "free": ("Free", "$0", ""),
+}
+
+
+@router.get("/api/subscription/details", response_model=SubscriptionDetailsResponse)
+def subscription_details(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> SubscriptionDetailsResponse:
+    """Return subscription display info for the authenticated user. No Stripe IDs exposed."""
+    plan = get_user_plan(db, user_id) or "free"
+    plan_name, price_display, interval = _PLAN_DISPLAY.get(
+        plan, ("Free", "$0", "")
+    )
+    from app.services.payment_service import get_user_stripe_customer
+
+    can_manage = get_user_stripe_customer(db, user_id) is not None
+    status = "active" if plan not in ("free", "") else "none"
+    return SubscriptionDetailsResponse(
+        plan=plan,
+        plan_name=plan_name,
+        price_display=price_display,
+        billing_interval=interval,
+        status=status,
+        can_manage=can_manage,
+    )
+
+
+@router.post("/api/subscription/portal", response_model=SubscriptionPortalResponse)
+def subscription_portal(
+    payload: SubscriptionPortalRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> SubscriptionPortalResponse:
+    """Create a Stripe Customer Portal session and return the redirect URL."""
+    try:
+        url = create_customer_portal_session(payload.user_id, db, return_path="/")
+        return SubscriptionPortalResponse(url=url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/api/user/base")
 def user_base(
     user_id: str,
@@ -1013,6 +1063,11 @@ def user_base(
     ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="User not found.")
+
+    from app.services.payment_service import get_user_stripe_customer
+
+    can_manage = get_user_stripe_customer(db, user_id) is not None
+    
     return {
         "profile": {
             "id": row.id,
@@ -1028,6 +1083,7 @@ def user_base(
             "stripe_customer_id": None,
             "stripe_subscription_id": None,
             "status": "active" if row.plan and row.plan != "free" else "none",
+            "can_manage_subscription": can_manage,
         },
         "updated_at": None,
     }
