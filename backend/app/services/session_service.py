@@ -89,6 +89,7 @@ def create_session_from_resume(
     record = ResumeSessionRecord(
         id=str(uuid4()),
         user_id=user_id,
+        source_resume_id=resume_id,
         resume_text=resume.resume_text,
         resume_s3_key=resume.resume_s3_key,
         resume_content_hash=resume.resume_content_hash,

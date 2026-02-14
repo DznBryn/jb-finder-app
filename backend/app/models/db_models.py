@@ -61,6 +61,9 @@ class ResumeSessionRecord(Base, PublicSchemaMixin):
     daily_selections: Mapped[int] = mapped_column(Integer, default=0)
     daily_selection_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     plan: Mapped[str] = mapped_column(String(16), default="free")
+    source_resume_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
 
 class ResumeRecord(Base, PublicSchemaMixin):
@@ -89,6 +92,47 @@ class ResumeRecord(Base, PublicSchemaMixin):
     created_at: Mapped[datetime] = mapped_column(DateTime)
     daily_selections: Mapped[int] = mapped_column(Integer, default=0)
     daily_selection_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+
+
+class ResumeReviewRecord(Base, PublicSchemaMixin):
+    """Versioned resume review runs linked to a resume and job."""
+
+    __tablename__ = "resume_reviews"
+    __table_args__ = (
+        UniqueConstraint(
+            "resume_id", "job_id", "version",
+            name="uq_resume_reviews_resume_job_version",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    resume_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(Text, nullable=False)
+    input_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    output_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    usage_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+
+class AuditLogRecord(Base, PublicSchemaMixin):
+    """Audit log for delete and other actions."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    meta: Mapped[Optional[dict]] = mapped_column("metadata", JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class JobSelection(Base, PublicSchemaMixin):

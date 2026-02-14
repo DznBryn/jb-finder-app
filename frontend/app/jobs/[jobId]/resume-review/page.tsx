@@ -17,27 +17,25 @@ export default function ResumeReviewPage() {
   const jobId = typeof params.jobId === "string" ? params.jobId : "";
   const jobTitle = searchParams.get("title") ?? null;
   const companyName = searchParams.get("company") ?? null;
-
+  console.log("sessionProfile", sessionProfile);
   return (
-    <main className="py-2 md:py-8">
-      <div className="mx-auto max-w-5xl px-4">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+    <main className="py-2 md:py-4">
+      <div className="mx-auto max-w-8xl px-2">
+        <div className="">
           <Link
             href={jobId ? `/jobs/${jobId}` : "/"}
-            className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
+            className="text-sm text-slate-500 transition-colors hover:text-slate-300"
           >
             ← Back to job
           </Link>
         </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
-          <p className="mb-4 text-sm text-slate-400">
-            Review your resume against this role with targeted improvements.
-          </p>
+        <div className="p-4">
           <ResumeReview
             sessionId={sessionProfile?.session_id ?? null}
             jobId={jobId}
             jobTitle={jobTitle}
             companyName={companyName}
+            resumeId={sessionProfile?.resume_s3_key ?? null}
           />
         </div>
       </div>

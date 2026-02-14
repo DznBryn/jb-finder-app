@@ -24,6 +24,7 @@ import { signOut } from "next-auth/react";
 import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
 import { clearSessionAndStorage } from "@/lib/signOut";
 import { useUserBaseStore } from "@/lib/userBaseStore";
+import AccountSection from "./AccountSection";
 
 
 export default function AppSidebar() {
@@ -112,6 +113,7 @@ export default function AppSidebar() {
             </div>
           </SidebarGroupContent>
         </SidebarGroup>
+        <AccountSection />
       </SidebarContent>
       <SidebarFooter className="flex flex-col gap-2 bg-transparent px-2 pb-3">
         <Button

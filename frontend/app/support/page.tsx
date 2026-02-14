@@ -81,8 +81,8 @@ export default function SupportPage() {
             Support requests can be submitted via:
           </p>
           <ul className="mt-1 list-inside list-disc space-y-1 text-slate-300">
-            <li>In-app support form</li>
-            <li>Support email: <a href="mailto:bryan@debybe.com" className="text-emerald-400 hover:text-emerald-300 underline">bryan@debybe.com</a></li>
+            <li>Submit a support request through the in-app form</li>
+            <li>Message us on LinkedIn: <a href="https://www.linkedin.com/company/hyreme-io" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline">HyreMe.io</a></li>
           </ul>
         </section>
 
@@ -91,7 +91,7 @@ export default function SupportPage() {
             Response Time
           </h2>
           <p className="mt-2">
-            MVP support response target: 24–72 hours. Billing issues are
+            Hyreme.io support response target: 24–72 hours. Billing issues are
             prioritized.
           </p>
         </section>

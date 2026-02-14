@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import AppSidebar from "@/components/AppSidebar";
 import type { UserBase, UserResume } from "@/type";
 import { useUserBaseStore } from "@/lib/userBaseStore";
@@ -23,6 +24,9 @@ export default function AuthLayout({
 }) {
   const { status, data } = useSession();
   const hydrateUserBase = useUserBaseStore((state) => state.hydrateUserBase);
+  const triggerSubscriptionRefresh = useUserBaseStore(
+    (state) => state.triggerSubscriptionRefresh
+  );
   const hydrateUserResumes = useUserResumeStore(
     (state) => state.hydrateUserResumes
   );
@@ -30,11 +34,33 @@ export default function AuthLayout({
   const setResumes = useUserResumeStore((state) => state.setResumes);
 
   const userId = (data?.user as { id?: string } | undefined)?.id;
-  
+
   const checkoutOpen = useCheckoutModalStore((s) => s.open);
   const checkoutMessage = useCheckoutModalStore((s) => s.message);
   const checkoutPreselected = useCheckoutModalStore((s) => s.preselectedPlan);
   const checkoutClose = useCheckoutModalStore((s) => s.close);
+
+  const searchParams = useSearchParams();
+  const portalSyncDone = useRef(false);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !userId) return;
+    if (searchParams.get("portal_return") !== "1") return;
+    if (portalSyncDone.current) return;
+    portalSyncDone.current = true;
+
+    (async () => {
+      try {
+        await fetch("/api/subscription/sync", { method: "POST", credentials: "include" });
+        await hydrateUserBase();
+      } finally {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("portal_return");
+        const next = url.pathname + (url.search || "");
+        window.history.replaceState(null, "", next);
+      }
+    })();
+  }, [status, userId, searchParams, hydrateUserBase, triggerSubscriptionRefresh]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -60,7 +86,6 @@ export default function AuthLayout({
     userId,
   ]);
 
-  // Loading: show minimal layout to avoid hydration mismatch
   if (status === "loading") {
     return (
       <main className="min-h-svh w-full flex flex-col px-4 md:px-6">
@@ -73,13 +98,12 @@ export default function AuthLayout({
     );
   }
 
-  // Authenticated: full-viewport flex container so sidebar + main fill height and footer sticks to bottom
   if (status === "authenticated") {
     return (
       <>
         <div className="flex min-h-svh w-full">
           <AppSidebar />
-          <main className="flex flex-1 flex-col min-h-0 min-w-0 transition-[width,height] ease-linear md:ml-42 md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-28 md:px-4">
+          <main className="flex flex-1 flex-col min-h-0 min-w-0 transition-[width,height] ease-linear md:ml-48 md:group-has-data-[collapsible=icon]/sidebar-wrapper:ml-18 md:px-4">
             <AppHeader />
             <div className="flex-1 flex flex-col gap-4 min-h-0">
               {children}
@@ -97,7 +121,6 @@ export default function AuthLayout({
     );
   }
 
-  // Not authenticated: full-width layout without sidebar, with transparent header
   return (
     <main className="min-h-svh w-full flex flex-col md:max-w-7xl mx-auto">
       <AppHeader />

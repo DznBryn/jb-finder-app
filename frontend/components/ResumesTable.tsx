@@ -67,6 +67,7 @@ export default function ResumesTable({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteSuccessMessage, setDeleteSuccessMessage] = useState<string | null>(null);
   const [matchDialogResume, setMatchDialogResume] = useState<UserResume | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
 
@@ -171,6 +172,15 @@ export default function ResumesTable({
 
   return (
     <div className=" flex flex-col gap-2">
+      {deleteSuccessMessage && (
+        <div
+          className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-200 animate-in fade-in duration-200"
+          role="status"
+          aria-live="polite"
+        >
+          {deleteSuccessMessage}
+        </div>
+      )}
       {resumes.length > 0 && (
         <div className="flex items-center gap-2 justify-end ">
           <Button

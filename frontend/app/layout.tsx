@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { normalizeResumesPayload } from "@/lib/resumes";
 import type { UserBase, UserResume, UserResumesPayload } from "@/type";
 import { getBackendHeaders, getBackendUrl } from "@/lib/backendClient";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata = {
   title: "hyreme.io (hire me)",
@@ -55,6 +56,7 @@ export default async function RootLayout({
             initialResumes={initialResumes}
           >
             {children}
+            <Analytics />
           </AuthLayout>
         </Providers>
       </body>

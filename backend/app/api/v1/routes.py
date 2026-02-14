@@ -13,6 +13,9 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from app.models.schemas import (
+    SubscriptionDetailsResponse,
+    SubscriptionPortalRequest,
+    SubscriptionPortalResponse,
     ApplyPrepareRequest,
     ApplyPrepareResponse,
     AnalyzeRequest,
@@ -34,8 +37,10 @@ from app.models.schemas import (
     JobSelectionResponse,
     MatchesRequest,
     MatchesResponse,
+    ResumeReviewListResponse,
     ResumeReviewRequest,
     ResumeReviewResponse,
+    ResumeReviewVersionItem,
     ResumeTextResponse,
     SelectedJobDetail,
     SelectedJobsResponse,
@@ -58,9 +63,10 @@ from app.services.greenhouse_service import retrieve_job_post, submit_applicatio
 from app.services.matching_service import build_matches
 from app.services.jobs_service import list_jobs_by_ids
 from app.services.refresh_queue import enqueue_refresh, get_job
-from app.config import STRIPE_WEBHOOK_BYPASS, AUTH_SCHEMA, INTERNAL_API_KEY
+from app.config import STRIPE_WEBHOOK_BYPASS, AUTH_SCHEMA, INTERNAL_API_KEY, OPENAI_MODEL
 from app.services.payment_service import (
     create_checkout_session,
+    create_customer_portal_session,
     fulfill_checkout_session,
     get_checkout_session_status,
     handle_charge_refunded,
@@ -68,6 +74,7 @@ from app.services.payment_service import (
     get_user_plan,
     set_subscription_active,
     set_user_plan,
+    update_subscription_from_event,
     verify_stripe_signature,
 )
 from app.services.usage_service import (
@@ -80,13 +87,14 @@ from app.db import get_db
 from app.services.ai.llm_service import parse_resume_text
 from app.services.ai.llm_service import suggest_cover_letter_edits
 from app.models.db_models import (
-    AnalysisUsage,
+    AuditLogRecord,
     CoverLetterDocument,
     CoverLetterVersion,
     DeepAnalysisRecord,
     JobListing,
     JobSelection,
     ResumeRecord,
+    ResumeReviewRecord,
     ResumeSessionRecord,
 )
 from app.services.ai.llm_service import review_resume_for_job
@@ -133,13 +141,14 @@ def _verify_internal_api_key(
     authorization: str | None = Header(None),
 ) -> None:
     """Require valid internal API key for server-to-server user data endpoints."""
+    
     if not INTERNAL_API_KEY:
-        return  # No key configured: allow (e.g. local dev). Set INTERNAL_API_KEY in production.
+        raise HTTPException(status_code=403, detail="API key not configured.")
     token = x_internal_api_key
     if not token and authorization and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
     if token != INTERNAL_API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing internal API key.")
+        raise HTTPException(status_code=401, detail="Invalid API key.")
 
 
 @router.post("/api/resume/upload", response_model=SessionProfile)
@@ -150,6 +159,7 @@ def upload_resume(
     location_pref: str | None = Form(None),
     remote_pref: bool | None = Form(None),
     db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> SessionProfile:
     """Create or update a session from an uploaded resume file.
 
@@ -370,7 +380,11 @@ def session_profile(session_id: UUID, db: Session = Depends(get_db)) -> SessionP
 
 
 @router.get("/api/session/resume", response_model=ResumeTextResponse)
-def session_resume(session_id: UUID, db: Session = Depends(get_db)) -> ResumeTextResponse:
+def session_resume(
+    session_id: UUID,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> ResumeTextResponse:
     """Return resume text for the current session."""
 
     session = get_session(db, session_id)
@@ -418,7 +432,9 @@ def cover_letter_document(
 
 @router.post("/api/editor/draft", response_model=CoverLetterDraftResponse)
 def cover_letter_draft(
-    payload: CoverLetterDraftRequest, db: Session = Depends(get_db)
+    payload: CoverLetterDraftRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> CoverLetterDraftResponse:
     """Save cover letter draft content."""
 
@@ -444,7 +460,9 @@ def cover_letter_draft(
 
 @router.post("/api/editor/version", response_model=CoverLetterDocumentVersion)
 def cover_letter_version(
-    payload: CoverLetterVersionCreateRequest, db: Session = Depends(get_db)
+    payload: CoverLetterVersionCreateRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> CoverLetterDocumentVersion:
     """Create a new cover letter version."""
 
@@ -562,6 +580,7 @@ def get_matches(
     session_id: UUID,
     page: int = 1,
     db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> MatchesResponse:
     """Return ranked job matches for the given session."""
 
@@ -584,7 +603,11 @@ def get_matches(
 
 
 @router.post("/api/matches", response_model=MatchesResponse)
-def post_matches(payload: MatchesRequest, db: Session = Depends(get_db)) -> MatchesResponse:
+def post_matches(
+    payload: MatchesRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> MatchesResponse:
     """Return ranked job matches with optional filters."""
 
     session = get_session(db, payload.session_id)
@@ -611,7 +634,11 @@ def post_matches(payload: MatchesRequest, db: Session = Depends(get_db)) -> Matc
 
 
 @router.get("/api/filters/titles", response_model=TitleFiltersResponse)
-def list_title_filters(limit: int = 100, db: Session = Depends(get_db)) -> TitleFiltersResponse:
+def list_title_filters(
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> TitleFiltersResponse:
     """Return top job titles with counts for filter dropdowns."""
 
     safe_limit = max(1, min(limit, 500))
@@ -630,7 +657,9 @@ def list_title_filters(limit: int = 100, db: Session = Depends(get_db)) -> Title
 
 @router.get("/api/filters/locations", response_model=LocationFiltersResponse)
 def list_location_filters(
-    limit: int = 200, db: Session = Depends(get_db)
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> LocationFiltersResponse:
     """Return distinct job locations with counts for filter suggestions."""
 
@@ -673,7 +702,9 @@ def select_jobs(
 
 @router.post("/api/apply/prepare", response_model=ApplyPrepareResponse)
 def prepare_application(
-    payload: ApplyPrepareRequest, db: Session = Depends(get_db)
+    payload: ApplyPrepareRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> ApplyPrepareResponse:
     """Generate cover letter content and return apply URL."""
 
@@ -741,7 +772,10 @@ def create_checkout(
 
 
 @router.get("/api/checkout/status", response_model=CheckoutStatusResponse)
-def get_checkout_status(session_id: str) -> CheckoutStatusResponse:
+def get_checkout_status(
+    session_id: str,
+    _: None = Depends(_verify_internal_api_key),
+) -> CheckoutStatusResponse:
     """Return Stripe Checkout Session status for frontend polling."""
     try:
         status = get_checkout_session_status(session_id)
@@ -754,7 +788,11 @@ def get_checkout_status(session_id: str) -> CheckoutStatusResponse:
 
 
 @router.post("/api/checkout/fulfill")
-def post_checkout_fulfill(session_id: str, db: Session = Depends(get_db)) -> Dict[str, object]:
+def post_checkout_fulfill(
+    session_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> Dict[str, object]:
     """
     Idempotent fulfillment: if the Stripe checkout session is paid, grant credits
     and set plan (if not already done). Call this after redirect from Stripe
@@ -772,7 +810,10 @@ def post_checkout_fulfill(session_id: str, db: Session = Depends(get_db)) -> Dic
 @router.post("/api/analyze", response_model=AnalyzeResponse)
 @limiter.limit("10/minute")
 def analyze_selections(
-    payload: AnalyzeRequest, request: Request, db: Session = Depends(get_db)
+    payload: AnalyzeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> AnalyzeResponse:
     """Analyze selected jobs with the LLM and return grades."""
 
@@ -803,7 +844,10 @@ def analyze_selections(
 @router.post("/api/analyze/deep", response_model=DeepAnalyzeResponse)
 @limiter.limit("3/minute")
 def analyze_deep(
-    payload: DeepAnalyzeRequest, request: Request, db: Session = Depends(get_db)
+    payload: DeepAnalyzeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> DeepAnalyzeResponse:
     """Deep analysis with learning resources for a single job."""
 
@@ -845,7 +889,10 @@ def analyze_deep(
 
 @router.get("/api/analyze/deep", response_model=DeepAnalyzeResponse)
 def get_deep_analyze(
-    session_id: UUID, job_id: str, db: Session = Depends(get_db)
+    session_id: UUID,
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> DeepAnalyzeResponse:
     """Return cached deep analysis for a session + job."""
 
@@ -862,16 +909,117 @@ def get_deep_analyze(
     return DeepAnalyzeResponse(**out)
 
 
+
+# Resume Review
+RESUME_REVIEW_PROMPT_VERSION = "resume_review_v1"
+
+
+def _persist_resume_review(
+    db: Session,
+    resume_id: str,
+    user_id: str,
+    job_id: str,
+    resume_text: str,
+    review_dict: dict,
+    total_tokens: int,
+    model: str,
+) -> Optional[tuple[str, int, datetime]]:
+    """Persist a review version. Returns (review_id, version, created_at) or None on failure."""
+    resume = (
+        db.query(ResumeRecord)
+        .filter(ResumeRecord.id == resume_id, ResumeRecord.user_id == user_id)
+        .first()
+    )
+    if not resume:
+        return None
+    input_hash = hashlib.sha256((resume_text or "").encode()).hexdigest()
+    max_ver = (
+        db.query(func.max(ResumeReviewRecord.version))
+        .filter(
+            ResumeReviewRecord.resume_id == resume_id,
+            ResumeReviewRecord.job_id == job_id,
+        )
+        .scalar()
+    )
+    next_version = (max_ver or 0) + 1
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    review_id = str(uuid4())
+    record = ResumeReviewRecord(
+        id=review_id,
+        user_id=user_id,
+        resume_id=resume_id,
+        job_id=job_id,
+        version=next_version,
+        run_id=None,
+        created_at=now,
+        model=model,
+        prompt_version=RESUME_REVIEW_PROMPT_VERSION,
+        input_hash=input_hash,
+        output_json=review_dict,
+        usage_json={"total_tokens": total_tokens} if total_tokens else None,
+    )
+    db.add(record)
+    db.commit()
+    return review_id, next_version, now
+
+
+@router.get("/api/resume/review/latest", response_model=ResumeReviewResponse)
+def resume_review_latest(
+    session_id: UUID,
+    job_id: str,
+    db: Session = Depends(get_db),
+) -> ResumeReviewResponse:
+    """Return the most recent persisted review for this session's resume and job. 404 if none."""
+
+    session = get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired.")
+
+    resume_id = getattr(session, "source_resume_id", None)
+    if not resume_id:
+        raise HTTPException(status_code=404, detail="No linked resume for this session.")
+
+    latest = (
+        db.query(ResumeReviewRecord)
+        .filter(
+            ResumeReviewRecord.resume_id == resume_id,
+            ResumeReviewRecord.job_id == job_id,
+        )
+        .order_by(ResumeReviewRecord.created_at.desc())
+        .first()
+    )
+    if not latest:
+        raise HTTPException(status_code=404, detail="No review found.")
+
+    out = latest.output_json or {}
+    return ResumeReviewResponse(
+        session_id=session_id,
+        job_id=job_id,
+        summary=out.get("summary", ""),
+        strengths=out.get("strengths", []),
+        gaps=out.get("gaps", []),
+        missing_required_skills=out.get("missing_required_skills", []),
+        changes=out.get("changes", []),
+        rewording=out.get("rewording", []),
+        vocabulary=out.get("vocabulary", []),
+        resume_id=resume_id,
+        review_id=latest.id,
+        version=latest.version,
+        created_at=latest.created_at,
+    )
+
+
 @router.post("/api/resume/review", response_model=ResumeReviewResponse)
 @limiter.limit("5/minute")
 def resume_review(
     payload: ResumeReviewRequest, request: Request, db: Session = Depends(get_db)
 ) -> ResumeReviewResponse:
-    """Review a resume against a job posting."""
+    """Review a resume against a job posting. Persists version when linked to a resume."""
 
     session = get_session(db, payload.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
+        
     _require_credits_or_402(getattr(session, "user_id", None), db, "resume_review")
 
     try:
@@ -883,7 +1031,7 @@ def resume_review(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
 
-    review = review_resume_for_job(
+    review, total_tokens = review_resume_for_job(
         session.resume_text,
         {
             "title": job.title,
@@ -891,17 +1039,98 @@ def resume_review(
             "description": job.description or "",
         },
     )
+    user_id = getattr(session, "user_id", None)
+    if user_id and total_tokens:
+        settle_usage(db, user_id, total_tokens, "resume_review")
+
+    if isinstance(review, dict):
+        review_dict = review
+    elif hasattr(review, "model_dump"):
+        review_dict = review.model_dump()
+    elif hasattr(review, "dict"):
+        review_dict = review.dict()
+    else:
+        review_dict = {}
+
+    resume_id = payload.resume_id or getattr(session, "source_resume_id", None)
+    if not resume_id and user_id:
+        content_hash = getattr(session, "resume_content_hash", None) or hashlib.sha256(
+            (session.resume_text or "").encode()
+        ).hexdigest()
+        resume_row = (
+            db.query(ResumeRecord)
+            .filter(
+                ResumeRecord.user_id == user_id,
+                ResumeRecord.resume_content_hash == content_hash,
+            )
+            .order_by(ResumeRecord.created_at.desc())
+            .first()
+        )
+        if resume_row:
+            resume_id = resume_row.id
+        else:
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            resume_row = ResumeRecord(
+                id=str(uuid4()),
+                user_id=user_id,
+                resume_text=session.resume_text or "",
+                resume_s3_key=session.resume_s3_key,
+                resume_content_hash=content_hash,
+                extracted_skills=session.extracted_skills or [],
+                inferred_titles=session.inferred_titles or [],
+                seniority=session.seniority or "mid",
+                years_experience=getattr(session, "years_experience", 0) or 0,
+                location_pref=session.location_pref,
+                remote_pref=session.remote_pref,
+                llm_summary=session.llm_summary,
+                first_name=session.first_name,
+                last_name=session.last_name,
+                email=session.email,
+                phone=session.phone,
+                location=session.location,
+                social_links=session.social_links or [],
+                created_at=now,
+                daily_selections=0,
+                daily_selection_date=now.date().isoformat(),
+            )
+            db.add(resume_row)
+            db.flush()
+            resume_id = resume_row.id
+
+    review_id, version, created_at = None, None, None
+
+    if resume_id and user_id:
+        result = _persist_resume_review(
+            db,
+            resume_id=resume_id,
+            user_id=user_id,
+            job_id=str(payload.job_id),
+            resume_text=session.resume_text,
+            review_dict=review_dict,
+            total_tokens=total_tokens or 0,
+            model=OPENAI_MODEL,
+        )
+        if result:
+            review_id, version, created_at = result
+            db.query(ResumeSessionRecord).filter(
+                ResumeSessionRecord.id == str(payload.session_id)
+            ).update({"source_resume_id": resume_id})
+            db.commit()
 
     return ResumeReviewResponse(
         session_id=payload.session_id,
         job_id=str(payload.job_id),
-        summary=review.get("summary", ""),
-        strengths=review.get("strengths", []),
-        gaps=review.get("gaps", []),
-        missing_required_skills=review.get("missing_required_skills", []),
-        changes=review.get("changes", []),
-        rewording=review.get("rewording", []),
-        vocabulary=review.get("vocabulary", []),
+        summary=review_dict.get("summary", ""),
+        strengths=review_dict.get("strengths", []),
+        gaps=review_dict.get("gaps", []),
+        missing_required_skills=review_dict.get("missing_required_skills", []),
+        changes=review_dict.get("changes", []),
+        rewording=review_dict.get("rewording", []),
+        vocabulary=review_dict.get("vocabulary", []),
+        resume_id=resume_id,
+        review_id=review_id,
+        version=version,
+        created_at=created_at,
     )
 
 
@@ -942,6 +1171,15 @@ async def stripe_webhook(
             fulfill_checkout_session(stripe_session_id, db)
         return {"status": "ok"}
 
+    if event["type"] in (
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+    ):
+        sub = event["data"]["object"]
+        update_subscription_from_event(db, sub)
+        return {"status": "ok"}
+
     if event["type"] == "invoice.paid":
         invoice = event["data"]["object"]
         subscription_id = invoice.get("subscription")
@@ -952,22 +1190,17 @@ async def stripe_webhook(
         user_id = metadata.get("user_id")
         if user_id:
             plan = get_user_plan(db, user_id)
-            if plan in ("monthly_basic", "monthly_pro", "monthly"):
+            if plan in ("monthly_basic", "monthly_pro"):
                 from app.services.payment_service import PLAN_CREDITS
+
                 credits = PLAN_CREDITS.get(plan) or PLAN_CREDITS.get("monthly_basic", 500)
                 db.execute(
-                    text(f"UPDATE {_auth_users_table()} SET subscription_credits = :amt WHERE id = :id"),
+                    text(
+                        f"UPDATE {_auth_users_table()} SET subscription_credits = :amt WHERE id = :id"
+                    ),
                     {"amt": credits, "id": user_id},
                 )
                 db.commit()
-        return {"status": "ok"}
-
-    if event["type"] == "customer.subscription.deleted":
-        sub = event["data"]["object"]
-        metadata = sub.get("metadata") or {}
-        user_id = metadata.get("user_id")
-        if user_id:
-            set_user_plan(db, user_id, "free")
         return {"status": "ok"}
 
     if event["type"] == "charge.refunded":
@@ -985,12 +1218,119 @@ async def stripe_webhook(
 
 @router.get("/api/subscription/status", response_model=SubscriptionStatusResponse)
 def subscription_status(
-    session_id: UUID, db: Session = Depends(get_db)
+    session_id: UUID,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> SubscriptionStatusResponse:
     """Return the current plan and subscription status (from users when session has user_id)."""
 
     status = get_subscription_status(session_id, db)
     return SubscriptionStatusResponse(plan=status.plan, status=status.status)
+
+
+_PLAN_DISPLAY = {
+    "monthly_basic": ("Job Seeker (Basic)", "$9.99", "month"),
+    "monthly_pro": ("Power Applier (Pro)", "$24.99", "month"),
+    "free": ("Free", "$0", ""),
+}
+
+
+def _subscription_display_status(
+    subscription_status: str | None,
+    cancel_at_period_end: bool,
+    ended_at: int | None,
+    plan: str,
+) -> str:
+    """Compute display status: active | canceling | canceled | none."""
+    if subscription_status == "canceled" or ended_at is not None:
+        return "canceled"
+    if subscription_status == "active" and cancel_at_period_end:
+        return "canceling"
+    if subscription_status in ("active", "trialing", "past_due") and plan not in (
+        "free",
+        "",
+    ):
+        return "active"
+    return "none"
+
+
+@router.get("/api/subscription/details", response_model=SubscriptionDetailsResponse)
+def subscription_details(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> SubscriptionDetailsResponse:
+    """Return subscription display info for the authenticated user. No Stripe IDs exposed."""
+    row = db.execute(
+        text(
+            f"""
+            SELECT plan, subscription_status, cancel_at_period_end,
+                   current_period_end, ended_at
+            FROM {_auth_users_table()}
+            WHERE id = :user_id
+            """
+        ),
+        {"user_id": user_id},
+    ).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    plan = row.plan or "free"
+    subscription_status = row.subscription_status or "none"
+    cancel_at_period_end = bool(row.cancel_at_period_end) if row.cancel_at_period_end is not None else False
+    current_period_end = row.current_period_end if row.current_period_end is not None else None
+    ended_at = row.ended_at if row.ended_at is not None else None
+
+    plan_name, price_display, interval = _PLAN_DISPLAY.get(
+        plan, ("Free", "$0", "")
+    )
+    from app.services.payment_service import get_user_stripe_customer
+
+    can_manage = get_user_stripe_customer(db, user_id) is not None
+    status = _subscription_display_status(
+        subscription_status, cancel_at_period_end, ended_at, plan
+    )
+    return SubscriptionDetailsResponse(
+        plan=plan,
+        plan_name=plan_name,
+        price_display=price_display,
+        billing_interval=interval,
+        status=status,
+        can_manage=can_manage,
+        cancel_at_period_end=cancel_at_period_end,
+        current_period_end=current_period_end,
+    )
+
+
+@router.post("/api/subscription/sync")
+def subscription_sync(
+    user_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+):
+    """Sync user's plan from Stripe and update DB. Called after portal return."""
+    from app.services.payment_service import sync_subscription_from_stripe
+
+    try:
+        status = sync_subscription_from_stripe(user_id, db)
+        return {"status": status}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/api/subscription/portal", response_model=SubscriptionPortalResponse)
+def subscription_portal(
+    payload: SubscriptionPortalRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> SubscriptionPortalResponse:
+    """Create a Stripe Customer Portal session and return the redirect URL."""
+    try:
+        url = create_customer_portal_session(payload.user_id, db, return_path="/")
+        return SubscriptionPortalResponse(url=url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/api/user/base")
@@ -1004,7 +1344,8 @@ def user_base(
     row = db.execute(
         text(
             f"""
-            SELECT id, name, email, image, plan, subscription_credits, one_time_credits
+            SELECT id, name, email, image, plan, subscription_credits, one_time_credits,
+                   subscription_status, cancel_at_period_end, current_period_end, ended_at
             FROM {_auth_users_table()}
             WHERE id = :user_id
             """
@@ -1013,6 +1354,18 @@ def user_base(
     ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="User not found.")
+
+    from app.services.payment_service import get_user_stripe_customer
+
+    can_manage = get_user_stripe_customer(db, user_id) is not None
+    sub_status = getattr(row, "subscription_status", None) or "none"
+    cancel_at_period_end = bool(getattr(row, "cancel_at_period_end", None) or False)
+    ended_at = getattr(row, "ended_at", None)
+    plan_val = row.plan or "free"
+    status = _subscription_display_status(
+        sub_status, cancel_at_period_end, ended_at, plan_val
+    )
+
     return {
         "profile": {
             "id": row.id,
@@ -1027,7 +1380,12 @@ def user_base(
             "one_time_credits": row.one_time_credits,
             "stripe_customer_id": None,
             "stripe_subscription_id": None,
-            "status": "active" if row.plan and row.plan != "free" else "none",
+            "status": status,
+            "can_manage_subscription": can_manage,
+            "subscription_status": sub_status,
+            "cancel_at_period_end": cancel_at_period_end,
+            "current_period_end": getattr(row, "current_period_end", None),
+            "ended_at": ended_at,
         },
         "updated_at": None,
     }
@@ -1165,41 +1523,129 @@ def user_resumes(
     }
 
 
+def _filename_from_s3_key(key: Optional[str]) -> str:
+    if not key:
+        return ""
+    parts = key.split("/")
+    return parts[-1] if parts else key
+
+
 @router.post("/api/user/resumes/delete", response_model=UserResumesDeleteResponse)
 def user_resumes_delete(
     payload: UserResumesDeleteRequest,
     db: Session = Depends(get_db),
     _: None = Depends(_verify_internal_api_key),
 ) -> UserResumesDeleteResponse:
-    """Delete one or more resume records for a user. Removes stored file(s) and DB rows."""
+    """Delete one or more resume records for a user. Cascade deletes reviews, records audit log."""
 
     if not payload.resume_ids:
         return UserResumesDeleteResponse(deleted=0)
 
     deleted = 0
+    total_reviews_deleted = 0
     for resume_id in payload.resume_ids:
-        if not resume_id or not resume_id.strip():
+        rid = (resume_id or "").strip()
+        if not rid:
             continue
         record = (
             db.query(ResumeRecord)
             .filter(
-                ResumeRecord.id == resume_id.strip(),
+                ResumeRecord.id == rid,
                 ResumeRecord.user_id == payload.user_id,
             )
             .first()
         )
         if not record:
             continue
+        review_count = (
+            db.query(func.count(ResumeReviewRecord.id))
+            .filter(ResumeReviewRecord.resume_id == rid)
+            .scalar()
+            or 0
+        )
+        audit = AuditLogRecord(
+            id=str(uuid4()),
+            user_id=payload.user_id,
+            action="resume_deleted",
+            entity_type="resume",
+            entity_id=rid,
+            meta={
+                "source": "resumes_page",
+                "filename": _filename_from_s3_key(record.resume_s3_key),
+                "storage_key": record.resume_s3_key,
+                "review_count_deleted": review_count,
+            },
+        )
+        db.add(audit)
         if record.resume_s3_key:
             try:
                 delete_resume_file(record.resume_s3_key)
             except Exception:
-                pass  # continue to delete DB row even if storage delete fails
+                pass
         db.delete(record)
         deleted += 1
+        total_reviews_deleted += review_count
 
     db.commit()
-    return UserResumesDeleteResponse(deleted=deleted)
+    return UserResumesDeleteResponse(deleted=deleted, deleted_reviews_count=total_reviews_deleted)
+
+
+@router.get("/api/user/resume/{resume_id}/reviews", response_model=ResumeReviewListResponse)
+def user_resume_reviews(
+    resume_id: str,
+    user_id: str,
+    page: int = 1,
+    page_size: int = 20,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> ResumeReviewListResponse:
+    """Return paginated review versions for a resume. Latest first."""
+
+    resume = (
+        db.query(ResumeRecord)
+        .filter(ResumeRecord.id == resume_id, ResumeRecord.user_id == user_id)
+        .first()
+    )
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found or access denied.")
+
+    page = max(1, page)
+    page_size = min(max(1, page_size), 100)
+    q = (
+        db.query(ResumeReviewRecord)
+        .filter(ResumeReviewRecord.resume_id == resume_id)
+        .order_by(ResumeReviewRecord.created_at.desc())
+    )
+    total = q.count()
+    rows = q.offset((page - 1) * page_size).limit(page_size).all()
+
+    items = []
+    for r in rows:
+        out = r.output_json or {}
+        items.append(
+            ResumeReviewVersionItem(
+                id=r.id,
+                version=r.version,
+                created_at=r.created_at,
+                model=r.model,
+                prompt_version=r.prompt_version,
+                summary=out.get("summary"),
+                strengths=out.get("strengths", []),
+                gaps=out.get("gaps", []),
+                missing_required_skills=out.get("missing_required_skills", []),
+                changes=out.get("changes", []),
+                rewording=out.get("rewording", []),
+                vocabulary=out.get("vocabulary", []),
+            )
+        )
+
+    return ResumeReviewListResponse(
+        resume_id=resume_id,
+        items=items,
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 
 @router.post("/api/user/resume/{resume_id}/create-session", response_model=SessionProfile)
@@ -1242,7 +1688,10 @@ def create_session_from_resume_route(
 
 @router.get("/api/jobs/selected")
 def selected_jobs(
-    session_id: UUID, user_id: Optional[str] = None, db: Session = Depends(get_db)
+    session_id: UUID,
+    user_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
 ) -> Dict[str, list]:
     """Return the job IDs selected for this session."""
 
@@ -1273,7 +1722,11 @@ def selected_job_details(
 
 
 @router.get("/api/greenhouse/job")
-def greenhouse_job(job_id: str, db: Session = Depends(get_db)) -> Dict[str, object]:
+def greenhouse_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> Dict[str, object]:
     """Fetch Greenhouse job questions for a selected job."""
 
     try:
@@ -1316,7 +1769,10 @@ def greenhouse_apply(
 
 
 @router.post("/api/ingest/refresh", response_model=RefreshEnqueueResponse)
-def ingest_refresh(db: Session = Depends(get_db)) -> RefreshEnqueueResponse:
+def ingest_refresh(
+    db: Session = Depends(get_db),
+    _: None = Depends(_verify_internal_api_key),
+) -> RefreshEnqueueResponse:
     """Enqueue a manual ATS ingestion refresh (dev only)."""
 
     job = enqueue_refresh(db, requested_by="api")

@@ -5,15 +5,20 @@ type UserBaseState = {
   userBase: UserBase | null;
   loading: boolean;
   error: string | null;
+  subscriptionRefreshTrigger: number;
   setUserBase: (userBase: UserBase | null) => void;
   hydrateUserBase: () => Promise<void>;
+  triggerSubscriptionRefresh: () => void;
 };
 
 export const useUserBaseStore = create<UserBaseState>((set) => ({
   userBase: null,
   loading: false,
   error: null,
+  subscriptionRefreshTrigger: 0,
   setUserBase: (userBase) => set({ userBase }),
+  triggerSubscriptionRefresh: () =>
+    set(({ subscriptionRefreshTrigger: trigger }) => ({ subscriptionRefreshTrigger: trigger + 1 })),
   hydrateUserBase: async () => {
     set({ loading: true, error: null });
     try {
