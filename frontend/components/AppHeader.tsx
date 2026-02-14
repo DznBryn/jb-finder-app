@@ -36,8 +36,9 @@ export default function AppHeader() {
       <header
         className={cn(
           "sticky top-0 z-[var(--z-header)] w-full border-none transition-[background-color,box-shadow] duration-200",
+          isAuthenticated && "md:hidden",
           isScrolled
-            ? "border-b border-slate-800 bg-slate-950/95 shadow-sm backdrop-blur-sm"
+            ? "border-b border-slate-800 bg-slate-950/95 shadow-sm backdrop-blur-sm md:hidden"
             : "bg-transparent"
         )}
       >

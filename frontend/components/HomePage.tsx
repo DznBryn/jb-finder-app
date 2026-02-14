@@ -907,7 +907,7 @@ export default function HomepageClient({ matchOnly = false }: { matchOnly?: bool
       />
       <div className="landing-page">
         <div
-          className={`mx-auto flex min-h-[70vh] flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-8'} px-2 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"}`}
+          className={`mx-auto flex min-h-[70vh] flex-col items-center ${showMatchesLoading && !showMatchesSection ? 'gap-2' : 'gap-8'} px-2 py-4 md:py-12 ${showMatchesSection ? "justify-start" : "max-w-2xl justify-center"} md:max-w-7xl`}
         >
           {!showMatchesSection && <LandingHero />}
           <UploadResume
