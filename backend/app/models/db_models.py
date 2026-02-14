@@ -62,7 +62,7 @@ class ResumeSessionRecord(Base, PublicSchemaMixin):
     daily_selection_date: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     plan: Mapped[str] = mapped_column(String(16), default="free")
     source_resume_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True, index=True
+        String(36), ForeignKey("public.resumes.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
 
@@ -108,7 +108,7 @@ class ResumeReviewRecord(Base, PublicSchemaMixin):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     resume_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False
+        String(36), ForeignKey("public.resumes.id", ondelete="CASCADE"), nullable=False
     )
     job_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
