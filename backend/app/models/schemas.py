@@ -168,6 +168,34 @@ class UserResumesDeleteResponse(BaseModel):
     """Response after deleting resumes."""
 
     deleted: int = Field(..., description="Number of resume records deleted.")
+    deleted_reviews_count: int = Field(default=0, description="Total review versions removed (cascade).")
+
+
+class ResumeReviewVersionItem(BaseModel):
+    """Single review version in the list."""
+
+    id: str
+    version: int
+    created_at: datetime
+    model: str
+    prompt_version: str
+    summary: Optional[str] = None
+    strengths: List[str] = []
+    gaps: List[str] = []
+    missing_required_skills: List[str] = []
+    changes: List[str] = []
+    rewording: List[str] = []
+    vocabulary: List[str] = []
+
+
+class ResumeReviewListResponse(BaseModel):
+    """Paginated list of review versions for a resume."""
+
+    resume_id: str
+    items: List[ResumeReviewVersionItem]
+    page: int
+    page_size: int
+    total: int
 
 
 class CheckoutRequest(BaseModel):
@@ -209,8 +237,10 @@ class SubscriptionDetailsResponse(BaseModel):
     plan_name: str
     price_display: str
     billing_interval: str
-    status: str
+    status: str  # active | canceling | canceled | none
     can_manage: bool = False
+    cancel_at_period_end: bool = False
+    current_period_end: Optional[int] = None  # unix ts
 
 
 class SubscriptionPortalRequest(BaseModel):
@@ -331,6 +361,7 @@ class ResumeReviewRequest(BaseModel):
 
     session_id: UUID
     job_id: str
+    resume_id: Optional[str] = None
 
 
 class ResumeReviewResponse(BaseModel):
@@ -345,6 +376,10 @@ class ResumeReviewResponse(BaseModel):
     changes: List[str] = []
     rewording: List[str] = []
     vocabulary: List[str] = []
+    resume_id: Optional[str] = None
+    review_id: Optional[str] = None
+    version: Optional[int] = None
+    created_at: Optional[datetime] = None
 
 
 class CoverLetterDocumentVersion(BaseModel):

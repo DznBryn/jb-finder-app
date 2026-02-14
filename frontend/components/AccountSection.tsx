@@ -25,13 +25,18 @@ type SubscriptionDetails = {
   plan_name: string;
   price_display: string;
   billing_interval: string;
-  status: string;
+  status: string; // active | canceling | canceled | none
   can_manage: boolean;
+  cancel_at_period_end?: boolean;
+  current_period_end?: number | null; // unix ts
 };
 
 export default function AccountSection() {
   const wallet = useUserBaseStore((s) => s.userBase?.wallet);
-  const openCheckout = useCheckoutModalStore((s) => s.openForCredits);
+  const openCheckout = useCheckoutModalStore(({ openForCredits }) => openForCredits);
+  const subscriptionRefreshTrigger = useUserBaseStore(
+    ({ subscriptionRefreshTrigger }) => subscriptionRefreshTrigger
+  );
 
   const [details, setDetails] = useState<SubscriptionDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,6 +68,10 @@ export default function AccountSection() {
     fetchDetails();
   }, [fetchDetails]);
 
+  useEffect(() => {
+    if (subscriptionRefreshTrigger > 0) fetchDetails();
+  }, [subscriptionRefreshTrigger, fetchDetails]);
+
   const handleManageSubscription = useCallback(async () => {
     setPortalLoading(true);
     setPortalError(null);
@@ -91,8 +100,26 @@ export default function AccountSection() {
     }
   }, []);
 
-  const hasSubscription = details?.plan && details.plan !== "free" && details.status === "active";
+  // Active or canceling = still has subscription access
+  const hasSubscription =
+    details?.plan &&
+    details.plan !== "free" &&
+    (details.status === "active" || details.status === "canceling");
   const canManage = details?.can_manage ?? wallet?.can_manage_subscription ?? false;
+
+  const cancelLabel = (() => {
+    if (details?.status !== "canceling" || !details?.current_period_end) return null;
+    try {
+      const d = new Date(details.current_period_end * 1000);
+      return d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  })();
 
   if (loading) {
     return (
@@ -117,6 +144,22 @@ export default function AccountSection() {
             <div className="flex items-center gap-2 px-2 py-1 text-amber-400 group-data-[collapsible=icon]:justify-center">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="text-xs group-data-[collapsible=icon]:hidden">{error}</span>
+            </div>
+          ) : details?.status === "canceled" ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 px-2 py-1 text-slate-400 group-data-[collapsible=icon]:justify-center">
+                <CreditCard className="h-4 w-4 shrink-0" />
+                <span className="text-sm group-data-[collapsible=icon]:hidden">Canceled</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
+                onClick={() => openCheckout()}
+              >
+                <CreditCard className="h-4 w-4" />
+                <span className="group-data-[collapsible=icon]:hidden">Subscribe again</span>
+              </Button>
             </div>
           ) : !hasSubscription ? (
             <div className="space-y-1">
@@ -145,6 +188,11 @@ export default function AccountSection() {
                 {details?.billing_interval && (
                   <span className="block text-xs text-slate-400 group-data-[collapsible=icon]:hidden">
                     {details.price_display}/{details.billing_interval}
+                  </span>
+                )}
+                {details?.status === "canceling" && cancelLabel && (
+                  <span className="block text-xs text-amber-400 group-data-[collapsible=icon]:hidden">
+                    Cancels on {cancelLabel}
                   </span>
                 )}
               </div>

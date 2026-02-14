@@ -1,7 +1,7 @@
 """Add stripe_customer_id column to auth users table.
 
 Revision ID: n4c5d6e7f8a9
-Revises: i9d0e1f2a3b4
+Revises: m3b4c5d6e7f8
 Create Date: 2026-02-07
 
 Enables Stripe Customer Portal for subscription management.
@@ -13,7 +13,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "n4c5d6e7f8a9"
-down_revision = "i9d0e1f2a3b4"
+down_revision = "m3b4c5d6e7f8"
 branch_labels = None
 depends_on = None
 

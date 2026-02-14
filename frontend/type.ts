@@ -94,8 +94,12 @@ export type UserWallet = {
   one_time_credits: number;
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
-  status?: string | null;
+  status?: string | null; // active | canceling | canceled | none
   can_manage_subscription?: boolean;
+  subscription_status?: string | null;
+  cancel_at_period_end?: boolean;
+  current_period_end?: number | null;
+  ended_at?: number | null;
 };
 
 export type UserBaseProfile = {
@@ -177,6 +181,10 @@ export type ResumeReviewResponse = {
   changes: string[];
   rewording: string[];
   vocabulary: string[];
+  resume_id?: string | null;
+  review_id?: string | null;
+  version?: number | null;
+  created_at?: string | null;
 };
 
 export type CoverLetterVersion = {

@@ -539,7 +539,7 @@ export default function MatchesSection({
                     className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100"
                     variant={"outline"}
                     onClick={onDeselectAll}
-                    disabled={selectedJobs.length === 0 || loadingMatches}
+                    disabled={selectedJobs.length === 0 || loadingMatches || analyzing}
                   >
                     Deselect all
                   </Button>
@@ -547,7 +547,7 @@ export default function MatchesSection({
                     className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-100"
                     variant={"outline"}
                     onClick={onSelectAllVisible}
-                    disabled={loadingMatches || matches.length === 0}
+                    disabled={loadingMatches || matches.length === 0 || analyzing}
                   >
                     Select all (page)
                   </Button>
@@ -555,7 +555,7 @@ export default function MatchesSection({
                     className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950"
                     variant={"default"}
                     onClick={onSaveSelections}
-                    disabled={selectedJobs.length === 0 || loadingMatches}
+                    disabled={selectedJobs.length === 0 || loadingMatches || analyzing}
                   >
                     Save selections
                   </Button>
@@ -680,15 +680,18 @@ export default function MatchesSection({
                     <div
                       key={match.job_id}
                       role="button"
-                      tabIndex={0}
-                      onClick={() => onToggleJobSelection(match.job_id)}
+                      tabIndex={analyzing ? -1 : 0}
+                      onClick={() => !analyzing && onToggleJobSelection(match.job_id)}
                       onKeyDown={(e) => {
+                        if (analyzing) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           onToggleJobSelection(match.job_id);
                         }
                       }}
-                      className={`rounded-xl border p-4 text-sm text-slate-200 flex flex-col gap-3 transition-all duration-200 cursor-pointer select-none ${
+                      className={`rounded-xl border p-4 text-sm text-slate-200 flex flex-col gap-3 transition-all duration-200 select-none ${
+                        analyzing ? "cursor-not-allowed" : "cursor-pointer"
+                      } ${
                         isSelected
                           ? "border-emerald-500/60 bg-emerald-500/10 ring-1 ring-emerald-500/30"
                           : "border-slate-800 bg-slate-950"
