@@ -41,7 +41,7 @@ export default function AppHeader() {
             : "bg-transparent"
         )}
       >
-        <div className="mx-auto flex h-14 md:hidden items-center gap-2 px-4">
+        <div className="mx-auto flex h-14 items-center gap-2 px-4">
           {isAuthenticated ? (
             <SidebarTrigger
               className={cn(
