@@ -10,8 +10,12 @@ type ConvertPayload = {
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions as any);
-  const userId = (session as { user?: { id: string } }).user?.id;
-  
+  const sessionWithUser = session as { user?: { id?: string } } | null;
+  const userId =
+    sessionWithUser != null && sessionWithUser.user != null
+      ? sessionWithUser.user.id
+      : undefined;
+
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

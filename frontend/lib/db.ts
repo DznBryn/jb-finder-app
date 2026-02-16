@@ -3,10 +3,23 @@ import { Pool } from "pg";
 
 const AUTH_SCHEMA = "next_auth";
 
-const authDbUrl = process.env.AUTH_DATABASE_URL;
-const appDbUrl =
+/** Normalize URL for node-postgres: strip +psycopg2, fix host for local dev (postgres:5432 -> localhost:5433). */
+function normalizeDbUrl(url: string): string {
+  let out = url.replace(/^postgresql\+[^:]+:/, "postgresql:");
+  if (process.env.NODE_ENV === "development" && /@postgres:5432\//.test(out)) {
+    out = out.replace("@postgres:5432/", "@localhost:5433/");
+  }
+  return out;
+}
+
+const authDbUrlRaw = process.env.AUTH_DATABASE_URL;
+const appDbUrlRaw =
   process.env.APP_DATABASE_URL ||
-  process.env.DATABASE_URL;
+  process.env.DATABASE_URL ||
+  authDbUrlRaw;
+
+const authDbUrl = authDbUrlRaw ? normalizeDbUrl(authDbUrlRaw) : "";
+const appDbUrl = appDbUrlRaw ? normalizeDbUrl(appDbUrlRaw) : "";
 
 if (!authDbUrl) {
   throw new Error("AUTH_DATABASE_URL is not set.");
@@ -52,4 +65,6 @@ function poolWithSearchPath(pool: Pool, schema: string): Pool {
 /** Use this for NextAuth adapter so users/accounts/sessions resolve in next_auth schema. */
 export const authPool = poolWithSearchPath(rawAuthPool, AUTH_SCHEMA);
 
-export const appPool = new Pool({ connectionString: appDbUrl });
+/** App tables (resume_sessions, resumes, etc.) live in public. Set search_path so unqualified names resolve. */
+const rawAppPool = new Pool({ connectionString: appDbUrl });
+export const appPool = poolWithSearchPath(rawAppPool, "public");
