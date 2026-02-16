@@ -134,7 +134,7 @@ export default function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
+        <SidebarGroup className="max-md:hidden">
           <SidebarGroupLabel className="text-slate-400">Credits</SidebarGroupLabel>
           <SidebarGroupContent>
             <div className="flex items-center gap-2 px-2 py-1 text-slate-200 group-data-[collapsible=icon]:justify-center">
@@ -151,11 +151,11 @@ export default function AppSidebar() {
         <Button
           variant="outline"
           size="sm"
-          className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
+          className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 max-md:justify-center group-data-[collapsible=icon]:justify-center"
           onClick={openCheckout}
         >
           <Coins className="h-4 w-4" />
-          <span className="group-data-[collapsible=icon]:hidden">Buy credits</span>
+          <span className="max-md:hidden group-data-[collapsible=icon]:hidden">Buy credits</span>
         </Button>
         <Button
           className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
