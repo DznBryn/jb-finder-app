@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { signIn, useSession as useAuthSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import SignupPrompt from "@/components/SignupPrompt";
 import { useUserBaseStore } from "@/lib/userBaseStore";
 import type { ResumeReviewResponse, ResumeTextResponse } from "../type";
 import { ChevronDown, ChevronUp, Search } from "lucide-react";
@@ -118,7 +120,12 @@ export default function ResumeReview({
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [resumeExpanded, setResumeExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
   const hydrateUserBase = useUserBaseStore((s) => s.hydrateUserBase);
+  const { status } = useAuthSession();
+
+  const getCallbackUrl = () =>
+    typeof window === "undefined" ? "/" : window.location.href;
 
   useEffect(() => {
     if (!sessionId) return;
@@ -177,6 +184,10 @@ export default function ResumeReview({
 
   const runReview = async () => {
     if (!sessionId || reviewing) return;
+    if (status === "unauthenticated") {
+      setShowSignupPrompt(true);
+      return;
+    }
     setReviewing(true);
     setReviewError(null);
     try {
@@ -240,6 +251,15 @@ export default function ResumeReview({
   }
 
   return (
+    <>
+      <SignupPrompt
+        open={showSignupPrompt}
+        onOpenChange={setShowSignupPrompt}
+        onGoogle={() => signIn("google", { callbackUrl: getCallbackUrl() })}
+        onLinkedIn={() => signIn("linkedin", { callbackUrl: getCallbackUrl() })}
+        title="Sign in for resume review"
+        message="Sign in to run aresume review against this job."
+      />
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -528,5 +548,6 @@ export default function ResumeReview({
         </div>
       </div>
     </div>
+    </>
   );
 }
