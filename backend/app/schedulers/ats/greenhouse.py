@@ -9,8 +9,7 @@ from typing import List
 import requests
 from bs4 import BeautifulSoup
 
-# Max concurrent requests per board for pay-transparency detail fetches.
-DETAIL_FETCH_WORKERS = 8
+DETAIL_FETCH_WORKERS = 4
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +47,7 @@ def fetch_jobs(board_token: str) -> List[dict]:
     data = response.json()
     t_list_elapsed = time.perf_counter() - t_list_start
     jobs_data = data.get("jobs", [])
-    logger.info(
-        "Greenhouse list request board=%s jobs=%s elapsed=%.2fs",
-        board_token,
-        len(jobs_data),
-        t_list_elapsed,
-    )
+
 
     if not jobs_data:
         return []
@@ -70,13 +64,7 @@ def fetch_jobs(board_token: str) -> List[dict]:
             idx = future_to_index[future]
             pay_ranges_by_index[idx] = future.result()
     t_pool_elapsed = time.perf_counter() - t_pool_start
-    logger.info(
-        "Greenhouse pay-transparency fetches board=%s jobs=%s workers=%s elapsed=%.2fs",
-        board_token,
-        len(jobs_data),
-        DETAIL_FETCH_WORKERS,
-        t_pool_elapsed,
-    )
+
 
     jobs = []
     for i, job in enumerate(jobs_data):

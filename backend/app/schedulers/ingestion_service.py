@@ -24,11 +24,6 @@ def refresh_all_jobs(db: Session) -> Dict[str, int]:
     for company in companies:
         if company.greenhouse_token:
             try:
-                logger.info(
-                    "Fetching Greenhouse jobs for %s (%s)",
-                    company.name,
-                    company.greenhouse_token,
-                )
                 jobs = fetch_greenhouse_jobs(company.greenhouse_token)
                 totals["greenhouse"] += upsert_jobs(
                     db,
