@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import json
-from pprint import pprint
 import stripe
+import time
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -31,7 +31,16 @@ class SubscriptionStatus:
     status: str = "none"
 
 
-_SUBSCRIPTIONS: dict[UUID, SubscriptionStatus] = {}
+_SUBSCRIPTIONS: dict[UUID, tuple[SubscriptionStatus, float]] = {}
+_SUB_TTL = 3600
+
+def _cleanup_subscriptions() -> None:
+    """Cleanup expired subscriptions."""
+    now = time.time()
+    for session_id, (_, timestamp) in _SUBSCRIPTIONS.items():
+        if now - timestamp > _SUB_TTL:
+            del _SUBSCRIPTIONS[session_id]
+
 
 
 def _users_table() -> str:
@@ -244,8 +253,6 @@ def create_checkout_session(
         raise ValueError("STRIPE_SECRET_KEY is not set.")
 
     entry = _PLAN_PRICE.get(plan)
-    pprint(plan)
-    pprint(_PLAN_PRICE)
     if not entry:
         raise ValueError(f"Unknown plan: {plan}.")
     price_id, mode = entry
@@ -477,7 +484,7 @@ def set_subscription_active(session_id: UUID, plan: str) -> SubscriptionStatus:
     """Mark a session as having an active subscription (in-memory for anonymous)."""
 
     status = SubscriptionStatus(plan=plan, status="active")
-    _SUBSCRIPTIONS[session_id] = status
+    _SUBSCRIPTIONS[session_id] = (status, time.time())
     return status
 
 
@@ -608,4 +615,6 @@ def get_subscription_status(
         if rec and rec.user_id:
             plan = get_user_plan(db, rec.user_id)
             return SubscriptionStatus(plan=plan, status="active" if plan != "free" else "none")
-    return _SUBSCRIPTIONS.get(session_id, SubscriptionStatus())
+
+    status, _ = _SUBSCRIPTIONS.get(session_id, SubscriptionStatus())
+    return status

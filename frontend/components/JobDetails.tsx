@@ -18,6 +18,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CoverLetterEditorSkeleton from "./skeletons/CoverLetterEditorSkeleton";
@@ -32,6 +38,8 @@ import type {
 const CoverLetterEditor = dynamic(() => import("./CoverLetterEditor"), {
   loading: () => <CoverLetterEditorSkeleton />,
 });
+
+const COVER_LETTER_ENABLED = false;
 
 type JobDetailsProps = {
   jobId: string;
@@ -199,9 +207,10 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     null
   );
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [signupCallbackUrl, setSignupCallbackUrl] = useState<string | null>(null);
 
   const getCallbackUrl = () =>
-    typeof window === "undefined" ? "/" : window.location.href;
+    signupCallbackUrl ?? (typeof window === "undefined" ? "/" : window.location.href);
 
   const requireAuthForLlm = () => {
     if (status === "unauthenticated") {
@@ -498,11 +507,18 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
     <>
       <SignupPrompt
         open={showSignupPrompt}
-        onOpenChange={setShowSignupPrompt}
+        onOpenChange={(open) => {
+          setShowSignupPrompt(open);
+          if (!open) setSignupCallbackUrl(null);
+        }}
         onGoogle={() => signIn("google", { callbackUrl: getCallbackUrl() })}
         onLinkedIn={() => signIn("linkedin", { callbackUrl: getCallbackUrl() })}
-        title="Save your progress"
-        message="Create an account to save your session and unlock more features."
+        title={signupCallbackUrl?.includes("resume-review") ? "Sign in for resume review" : "Save your progress"}
+        message={
+          signupCallbackUrl?.includes("resume-review")
+            ? "Sign in to run resume review against this job."
+            : "Create an account to save your session and unlock more features."
+        }
       />
       <div className="flex flex-col md:flex-row p-2 gap-6">
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 md:p-6 flex flex-col gap-6 w-full md:w-7/12">
@@ -608,53 +624,97 @@ export default function JobDetails({ jobId }: JobDetailsProps) {
             </div>
             <ButtonGroup className="flex flex-wrap">
 
-              <Button
-                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
-                variant="outline"
-                type="button"
-                asChild
-              >
-                <Link
-                  href={
-                    `/jobs/${jobId}/resume-review` +
-                    (() => {
-                      const q = new URLSearchParams();
-                      if (job?.title) q.set("title", job.title);
-                      if (analyzedJobDetails[jobId]?.company)
-                        q.set("company", analyzedJobDetails[jobId].company);
-                      const s = q.toString();
-                      return s ? `?${s}` : "";
-                    })()
-                  }
+              {status === "unauthenticated" ? (
+                <Button
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                  variant="outline"
+                  type="button"
+                  onClick={() => {
+                    const q = new URLSearchParams();
+                    if (job?.title) q.set("title", job.title);
+                    if (analyzedJobDetails[jobId]?.company)
+                      q.set("company", analyzedJobDetails[jobId].company);
+                    const s = q.toString();
+                    setSignupCallbackUrl(
+                      `/jobs/${jobId}/resume-review${s ? `?${s}` : ""}`
+                    );
+                    setShowSignupPrompt(true);
+                  }}
                 >
                   Resume review
-                </Link>
-              </Button>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
-                    variant="outline"
-                    type="button"
+                </Button>
+              ) : (
+                <Button
+                  className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                  variant="outline"
+                  type="button"
+                  asChild
+                >
+                  <Link
+                    href={
+                      `/jobs/${jobId}/resume-review` +
+                      (() => {
+                        const q = new URLSearchParams();
+                        if (job?.title) q.set("title", job.title);
+                        if (analyzedJobDetails[jobId]?.company)
+                          q.set("company", analyzedJobDetails[jobId].company);
+                        const s = q.toString();
+                        return s ? `?${s}` : "";
+                      })()
+                    }
                   >
-                    Cover letter
-                  </Button>
-                </DialogTrigger>
-                <DialogContent variant="fullscreen">
-                  <DialogHeader>
-                    <DialogTitle>Cover letter editor</DialogTitle>
-                    <DialogDescription>
-                      Generate, review, and accept AI suggestions before applying.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <CoverLetterEditor
-                    sessionId={sessionProfile?.session_id ?? null}
-                    jobId={jobId}
-                    jobTitle={job?.title ?? null}
-                    companyName={analyzedJobDetails[jobId]?.company ?? null}
-                  />
-                </DialogContent>
-              </Dialog>
+                    Resume review
+                  </Link>
+                </Button>
+              )}
+              {COVER_LETTER_ENABLED ? (
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button
+                      className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                      variant="outline"
+                      type="button"
+                    >
+                      Cover letter
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent variant="fullscreen">
+                    <DialogHeader>
+                      <DialogTitle>Cover letter editor</DialogTitle>
+                      <DialogDescription>
+                        Generate, review, and accept AI suggestions before applying.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <CoverLetterEditor
+                      sessionId={sessionProfile?.session_id ?? null}
+                      jobId={jobId}
+                      jobTitle={job?.title ?? null}
+                      companyName={analyzedJobDetails[jobId]?.company ?? null}
+                    />
+                  </DialogContent>
+                </Dialog>
+              ) : (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex cursor-not-allowed">
+                        <Button
+                          className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-100"
+                          variant="outline"
+                          type="button"
+                          disabled
+                          aria-disabled="true"
+                        >
+                          Cover letter
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      Cover letter editor coming soon
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </ButtonGroup>
           </div>
 

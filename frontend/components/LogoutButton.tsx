@@ -1,8 +1,8 @@
 "use client";
 
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
-import { clearSessionAndStorage } from "@/lib/signOut";
+import { performSignOut } from "@/lib/signOut";
 
 type LogoutButtonProps = {
   variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
@@ -18,10 +18,7 @@ export default function LogoutButton({
   const { status } = useSession();
   const hasSession = status === "authenticated";
 
-  const handleLogout = async () => {
-    clearSessionAndStorage();
-    await signOut({ callbackUrl: "/" });
-  };
+  const handleLogout = () => performSignOut({ callbackUrl: "/" });
 
   return (
     <Button

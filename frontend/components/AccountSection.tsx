@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useUserBaseStore } from "@/lib/userBaseStore";
 import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
+import { performSignOut } from "@/lib/signOut";
 
 type SubscriptionDetails = {
   plan: string;
@@ -50,6 +51,10 @@ export default function AccountSection() {
     setError(null);
     try {
       const res = await fetch("/api/subscription/details", { credentials: "include" });
+      if (res.status === 401) {
+        await performSignOut({ callbackUrl: "/auth/signin" });
+        return;
+      }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error((data.error as string) || "Failed to load subscription");

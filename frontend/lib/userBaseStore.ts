@@ -23,6 +23,11 @@ export const useUserBaseStore = create<UserBaseState>((set) => ({
     set({ loading: true, error: null });
     try {
       const response = await fetch("/api/user/base", { credentials: "include" });
+      if (response.status === 401) {
+        const { performSignOut } = await import("@/lib/signOut");
+        await performSignOut({ callbackUrl: "/auth/signin" });
+        return;
+      }
       if (!response.ok) {
         const detail = await response.text();
         throw new Error(detail || "Failed to load user base.");

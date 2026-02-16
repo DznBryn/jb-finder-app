@@ -20,12 +20,19 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { signOut } from "next-auth/react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
-import { clearSessionAndStorage } from "@/lib/signOut";
+import { performSignOut } from "@/lib/signOut";
 import { useUserBaseStore } from "@/lib/userBaseStore";
 import AccountSection from "./AccountSection";
 
+/** Set to true when Matches feature is ready for use. */
+const MATCHES_ENABLED = false;
 
 export default function AppSidebar() {
   const pathname = usePathname();
@@ -50,6 +57,7 @@ export default function AppSidebar() {
                   isActive={pathname === "/"}
                   tooltip="Home"
                   className="text-slate-200 hover:bg-slate-800/60 data-[active=true]:bg-slate-800/70"
+                  disabled={pathname === "/"}
                 >
                   <Link
                     href="/"
@@ -63,22 +71,45 @@ export default function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === "/jobs"}
-                  tooltip="Matches"
-                  className="text-slate-200 hover:bg-slate-800/60"
-                >
-                  <Link
-                    href="/jobs"
-                    className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                {MATCHES_ENABLED ? (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/jobs"}
+                    tooltip="Matches"
+                    className="text-slate-200 hover:bg-slate-800/60"
+                    disabled={pathname === "/jobs"}
                   >
-                    <Briefcase className="h-4 w-4" />
-                    <span className="group-data-[collapsible=icon]:hidden">
-                      Matches
-                    </span>
-                  </Link>
-                </SidebarMenuButton>
+                    <Link
+                      href="/jobs"
+                      className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      <span className="group-data-[collapsible=icon]:hidden">
+                        Matches
+                      </span>
+                    </Link>
+                  </SidebarMenuButton>
+                ) : (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex w-full cursor-not-allowed">
+                          <SidebarMenuButton
+                            disabled
+                            aria-disabled="true"
+                            className="flex w-full justify-start gap-2 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
+                          >
+                            <Briefcase className="h-4 w-4" />
+                            <span className="group-data-[collapsible=icon]:hidden">
+                              Matches
+                            </span>
+                          </SidebarMenuButton>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">Coming soon</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
@@ -86,6 +117,7 @@ export default function AppSidebar() {
                   isActive={pathname === "/resumes"}
                   tooltip="Resumes"
                   className="text-slate-200 hover:bg-slate-800/60"
+                  disabled={pathname === "/resumes"}
                 >
                   <Link
                     href="/resumes"
@@ -128,10 +160,7 @@ export default function AppSidebar() {
         <Button
           className="w-full justify-start gap-2 border-slate-700/60 text-slate-200 hover:bg-slate-800/60 group-data-[collapsible=icon]:justify-center"
           variant="outline"
-          onClick={() => {
-            clearSessionAndStorage();
-            signOut({ callbackUrl: "/auth/signin" });
-          }}
+          onClick={() => performSignOut({ callbackUrl: "/auth/signin" })}
         >
           <UserPlus className="h-4 w-4" />
           <span className="group-data-[collapsible=icon]:hidden">Sign out</span>

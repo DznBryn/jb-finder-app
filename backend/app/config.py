@@ -86,3 +86,6 @@ AUTH_SCHEMA = "".join(c for c in _AUTH_SCHEMA_RAW if c.isalnum() or c == "_") or
 # Internal API key for server-to-server calls (Next.js server -> backend). Required for /api/user/*.
 # Do not expose to the client. Set BACKEND_INTERNAL_API_KEY in Next.js and INTERNAL_API_KEY here (same value).
 INTERNAL_API_KEY = (os.getenv("INTERNAL_API_KEY", "") or os.getenv("BACKEND_INTERNAL_API_KEY", "")).strip()
+
+# Memory logging
+MEM_LOG_ENABLED = os.getenv("MEM_LOG_ENABLED", "false").lower() == "true"

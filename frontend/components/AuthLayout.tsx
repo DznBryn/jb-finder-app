@@ -8,6 +8,7 @@ import type { UserBase, UserResume } from "@/type";
 import { useUserBaseStore } from "@/lib/userBaseStore";
 import { useUserResumeStore } from "@/lib/userResumeStore";
 import { useCheckoutModalStore } from "@/lib/checkoutModalStore";
+import { performSignOut, useSignOutStore } from "@/lib/signOut";
 import { CheckoutModal } from "./CheckoutModal";
 import { Spinner } from "./ui/spinner";
 import Footer from "./Footer";
@@ -39,6 +40,7 @@ export default function AuthLayout({
   const checkoutMessage = useCheckoutModalStore((s) => s.message);
   const checkoutPreselected = useCheckoutModalStore((s) => s.preselectedPlan);
   const checkoutClose = useCheckoutModalStore((s) => s.close);
+  const signingOut = useSignOutStore(({ signingOut }) => signingOut);
 
   const searchParams = useSearchParams();
   const portalSyncDone = useRef(false);
@@ -51,7 +53,11 @@ export default function AuthLayout({
 
     (async () => {
       try {
-        await fetch("/api/subscription/sync", { method: "POST", credentials: "include" });
+        const syncRes = await fetch("/api/subscription/sync", { method: "POST", credentials: "include" });
+        if (syncRes.status === 401) {
+          await performSignOut({ callbackUrl: "/auth/signin" });
+          return;
+        }
         await hydrateUserBase();
       } finally {
         const url = new URL(window.location.href);
@@ -86,7 +92,7 @@ export default function AuthLayout({
     userId,
   ]);
 
-  if (status === "loading") {
+  if (status === "loading" || signingOut) {
     return (
       <main className="min-h-svh w-full flex flex-col px-4 md:px-6">
         <div className="flex-1 flex flex-col items-center justify-center w-full gap-4 min-h-0">

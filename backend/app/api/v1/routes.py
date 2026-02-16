@@ -121,7 +121,7 @@ from app.services.cover_letter_service import (
 from app.services.analysis_service import persist_match_analysis
 from app.rate_limiter import limiter
 from app.services.payment_service import fulfill_checkout_session
-from pprint import pprint
+
 
 router = APIRouter()
 
@@ -611,7 +611,6 @@ def post_matches(
     """Return ranked job matches with optional filters."""
 
     session = get_session(db, payload.session_id)
-    pprint(payload)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found or expired.")
     page = max(payload.page, 1)
@@ -1158,7 +1157,6 @@ async def stripe_webhook(
                 set_subscription_active(sid, plan)
         return {"status": "ok"}
 
-    pprint(payload)
     try:
         event = verify_stripe_signature(payload, signature)
     except Exception as exc:
@@ -1659,7 +1657,6 @@ def create_session_from_resume_route(
     print("resume_id", resume_id)
     print("user_id", user_id)
     session_record = create_session_from_resume(db, resume_id.strip(), user_id.strip())
-    pprint(session_record)
     if not session_record:
         raise HTTPException(status_code=404, detail="Resume not found or access denied.")
     return SessionProfile(
