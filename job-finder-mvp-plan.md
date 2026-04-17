@@ -41,7 +41,6 @@ todos:
 
 ## Goals
 
-- Translate the PRD into a concrete architecture and implementation approach.
 - Define minimal data model, APIs, and services needed for the MVP flow.
 - Keep scope aligned with constraints: no auto-apply, no scraping, no mandatory signup.
 
